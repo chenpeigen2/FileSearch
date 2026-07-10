@@ -198,6 +198,184 @@ def open_in_system(path: Path) -> tuple:
         return False, str(e)
 
 
+# ---------- IDE 检测 ----------
+# 每一项：id -> (显示名, emoji, [候选命令/路径], [启动参数模板])
+# 候选优先用 PATH 上的短名；找不到再看常见安装路径
+def _ide_candidates():
+    home = Path.home()
+    localapp = os.environ.get("LOCALAPPDATA", "")
+    program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
+    program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
+
+    def win(*parts):
+        return str(Path(*parts))
+
+    ides = {
+        "vscode": {
+            "name": "VS Code", "emoji": "🟦",
+            "cmds": ["code"],
+            "win_paths": [
+                win(localapp, "Programs", "Microsoft VS Code", "bin", "code.cmd"),
+                win(localapp, "Programs", "Microsoft VS Code", "Code.exe"),
+                win(program_files, "Microsoft VS Code", "bin", "code.cmd"),
+                win(program_files, "Microsoft VS Code", "Code.exe"),
+            ],
+            "mac_paths": ["/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"],
+            "linux_paths": ["/usr/bin/code", "/snap/bin/code", "/usr/local/bin/code"],
+        },
+        "vscode-insiders": {
+            "name": "VS Code Insiders", "emoji": "🟩",
+            "cmds": ["code-insiders"],
+            "win_paths": [
+                win(localapp, "Programs", "Microsoft VS Code Insiders", "bin", "code-insiders.cmd"),
+            ],
+            "mac_paths": ["/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders"],
+            "linux_paths": ["/usr/bin/code-insiders"],
+        },
+        "cursor": {
+            "name": "Cursor", "emoji": "⬛",
+            "cmds": ["cursor"],
+            "win_paths": [
+                win(localapp, "Programs", "cursor", "resources", "app", "bin", "cursor.cmd"),
+                win(localapp, "Programs", "cursor", "Cursor.exe"),
+            ],
+            "mac_paths": ["/Applications/Cursor.app/Contents/Resources/app/bin/cursor"],
+            "linux_paths": ["/usr/bin/cursor"],
+        },
+        "trae": {
+            "name": "Trae", "emoji": "🟪",
+            "cmds": ["trae"],
+            "win_paths": [
+                win(localapp, "Programs", "Trae", "bin", "trae.cmd"),
+                win(localapp, "Programs", "Trae", "Trae.exe"),
+            ],
+            "mac_paths": ["/Applications/Trae.app/Contents/Resources/app/bin/trae"],
+            "linux_paths": [],
+        },
+        "sublime": {
+            "name": "Sublime Text", "emoji": "🟧",
+            "cmds": ["subl", "sublime_text"],
+            "win_paths": [
+                win(program_files, "Sublime Text", "subl.exe"),
+                win(program_files, "Sublime Text 3", "subl.exe"),
+                win(program_files, "Sublime Text", "sublime_text.exe"),
+            ],
+            "mac_paths": ["/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"],
+            "linux_paths": ["/usr/bin/subl", "/snap/bin/subl"],
+        },
+        "idea": {
+            "name": "IntelliJ IDEA", "emoji": "🟥",
+            "cmds": ["idea", "idea64"],
+            "win_paths": [],  # 由 glob 补充
+            "mac_paths": ["/Applications/IntelliJ IDEA.app/Contents/MacOS/idea",
+                          "/Applications/IntelliJ IDEA CE.app/Contents/MacOS/idea"],
+            "linux_paths": ["/usr/bin/idea", "/snap/bin/intellij-idea-community"],
+        },
+        "pycharm": {
+            "name": "PyCharm", "emoji": "🟨",
+            "cmds": ["pycharm", "pycharm64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/PyCharm.app/Contents/MacOS/pycharm",
+                          "/Applications/PyCharm CE.app/Contents/MacOS/pycharm"],
+            "linux_paths": ["/usr/bin/pycharm", "/snap/bin/pycharm-community"],
+        },
+        "webstorm": {
+            "name": "WebStorm", "emoji": "🟫",
+            "cmds": ["webstorm", "webstorm64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/WebStorm.app/Contents/MacOS/webstorm"],
+            "linux_paths": ["/usr/bin/webstorm", "/snap/bin/webstorm"],
+        },
+        "goland": {
+            "name": "GoLand", "emoji": "🟩",
+            "cmds": ["goland", "goland64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/GoLand.app/Contents/MacOS/goland"],
+            "linux_paths": ["/usr/bin/goland", "/snap/bin/goland"],
+        },
+    }
+
+    # JetBrains 系产品在 Windows 上安装路径不固定，用 glob 兜底
+    if sys.platform.startswith("win"):
+        jb_roots = [
+            Path(program_files) / "JetBrains",
+            Path(program_files_x86) / "JetBrains",
+            home / "AppData" / "Local" / "JetBrains" / "Toolbox" / "apps",
+        ]
+        jb_map = {
+            "idea": ["idea64.exe", "idea.exe"],
+            "pycharm": ["pycharm64.exe", "pycharm.exe"],
+            "webstorm": ["webstorm64.exe", "webstorm.exe"],
+            "goland": ["goland64.exe", "goland.exe"],
+        }
+        for ide_id, exe_names in jb_map.items():
+            for root in jb_roots:
+                if not root.is_dir():
+                    continue
+                for exe in exe_names:
+                    try:
+                        for hit in root.rglob(exe):
+                            ides[ide_id]["win_paths"].append(str(hit))
+                            break
+                    except OSError:
+                        pass
+    return ides
+
+
+_ide_cache = None
+_ide_cache_lock = threading.Lock()
+
+
+def detect_ides():
+    """返回 {id: {name, emoji, exe}}，只保留能找到可执行文件的。缓存全局。"""
+    global _ide_cache
+    with _ide_cache_lock:
+        if _ide_cache is not None:
+            return _ide_cache
+        import shutil
+        found = {}
+        for ide_id, info in _ide_candidates().items():
+            exe = None
+            for cmd in info["cmds"]:
+                p = shutil.which(cmd)
+                if p:
+                    exe = p
+                    break
+            if not exe:
+                if sys.platform.startswith("win"):
+                    paths = info["win_paths"]
+                elif sys.platform == "darwin":
+                    paths = info["mac_paths"]
+                else:
+                    paths = info["linux_paths"]
+                for p in paths:
+                    if p and os.path.isfile(p):
+                        exe = p
+                        break
+            if exe:
+                found[ide_id] = {"name": info["name"], "emoji": info["emoji"], "exe": exe}
+        _ide_cache = found
+        return found
+
+
+def open_in_ide(ide_id: str, target: Path) -> tuple:
+    """用检测到的 IDE 打开目录。返回 (ok, err)。"""
+    import subprocess
+    ides = detect_ides()
+    info = ides.get(ide_id)
+    if not info:
+        return False, "未检测到该 IDE"
+    exe = info["exe"]
+    try:
+        # 所有主流 IDE 都支持 `<exe> <path>` 打开目录
+        subprocess.Popen([exe, str(target)])
+        return True, ""
+    except OSError as e:
+        return False, str(e)
+    except Exception as e:  # noqa: BLE001
+        return False, str(e)
+
+
 BASE_CSS = """
 * { box-sizing: border-box; }
 body {
@@ -480,6 +658,24 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
             f'  <button type="submit" style="background:#5a5a5f;padding:6px 10px;font-size:13px;width:100%;">⬆ 提升为新根</button>'
             f'</form>'
         )
+
+    # 检测到的 IDE 按钮
+    ide_html = ""
+    ides = detect_ides()
+    if ides:
+        rows = []
+        for ide_id, info in ides.items():
+            rows.append(
+                f'<form method="post" action="/open-ide" style="margin-top:6px;">'
+                f'  <input type="hidden" name="rel" value="{html.escape(current_rel)}">'
+                f'  <input type="hidden" name="ide" value="{html.escape(ide_id)}">'
+                f'  <button type="submit" title="{html.escape(info["exe"])}"'
+                f'    style="background:#1d1d1f;padding:6px 10px;font-size:13px;width:100%;">'
+                f'    {info["emoji"]} 在 {html.escape(info["name"])} 打开</button>'
+                f'</form>'
+            )
+        ide_html = "".join(rows)
+
     here_actions = f"""
     <h2 class="mt">📍 当前位置</h2>
     <div class="hint"><code>{html.escape(cur_abs)}</code></div>
@@ -488,6 +684,7 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
         <button type="submit" style="background:#5a5a5f;padding:6px 10px;font-size:13px;width:100%;">🗔 在系统打开</button>
     </form>
     {promote_html}
+    {ide_html}
     """
 
     return f"""
@@ -951,6 +1148,22 @@ class Handler(BaseHTTPRequestHandler):
             back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
             if ok:
                 self._redirect(back_url + "?msg=" + quote("已在系统打开") + "&kind=ok")
+            else:
+                self._redirect(back_url + "?msg=" + quote(f"打开失败: {err}") + "&kind=err")
+            return
+
+        if path == "/open-ide":
+            rel = (form.get("rel", [""])[0] or "").strip()
+            ide_id = (form.get("ide", [""])[0] or "").strip()
+            target = safe_resolve(rel)
+            back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
+            if target is None or not target.is_dir():
+                self._redirect(back_url + "?msg=" + quote("目录不存在") + "&kind=err")
+                return
+            ok, err = open_in_ide(ide_id, target)
+            if ok:
+                ide_name = detect_ides().get(ide_id, {}).get("name", ide_id)
+                self._redirect(back_url + "?msg=" + quote(f"已用 {ide_name} 打开") + "&kind=ok")
             else:
                 self._redirect(back_url + "?msg=" + quote(f"打开失败: {err}") + "&kind=err")
             return
