@@ -625,6 +625,7 @@ def _ide_extend_slow(ides):
     generic_win = {
         "notepad++": ["notepad++.exe"],
         "sublime": ["sublime_text.exe"],
+        "android-studio": ["studio64.exe", "studio.exe"],
         "vscode": ["Code.exe"],
         "cursor": ["Cursor.exe"],
         "windsurf": ["Windsurf.exe"],
