@@ -270,6 +270,10 @@ def _ide_candidates():
                 win(program_files, "Sublime Text", "subl.exe"),
                 win(program_files, "Sublime Text 3", "subl.exe"),
                 win(program_files, "Sublime Text", "sublime_text.exe"),
+                win(program_files, "Sublime Text 3", "sublime_text.exe"),
+                win(program_files_x86, "Sublime Text", "sublime_text.exe"),
+                win(program_files_x86, "Sublime Text 3", "sublime_text.exe"),
+                win(localapp, "Programs", "Sublime Text", "sublime_text.exe"),
             ],
             "mac_paths": ["/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"],
             "linux_paths": [
@@ -311,27 +315,286 @@ def _ide_candidates():
             "linux_paths": ["/usr/bin/goland", "/snap/bin/goland",
                             "/opt/goland/bin/goland.sh"],
         },
+        "clion": {
+            "name": "CLion", "emoji": "🟦",
+            "cmds": ["clion", "clion64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/CLion.app/Contents/MacOS/clion"],
+            "linux_paths": ["/usr/bin/clion", "/snap/bin/clion",
+                            "/opt/clion/bin/clion.sh"],
+        },
+        "rider": {
+            "name": "Rider", "emoji": "🟪",
+            "cmds": ["rider", "rider64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/Rider.app/Contents/MacOS/rider"],
+            "linux_paths": ["/usr/bin/rider", "/snap/bin/rider",
+                            "/opt/rider/bin/rider.sh"],
+        },
+        "phpstorm": {
+            "name": "PhpStorm", "emoji": "🟪",
+            "cmds": ["phpstorm", "phpstorm64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/PhpStorm.app/Contents/MacOS/phpstorm"],
+            "linux_paths": ["/usr/bin/phpstorm", "/snap/bin/phpstorm",
+                            "/opt/phpstorm/bin/phpstorm.sh"],
+        },
+        "rubymine": {
+            "name": "RubyMine", "emoji": "🟥",
+            "cmds": ["rubymine", "rubymine64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/RubyMine.app/Contents/MacOS/rubymine"],
+            "linux_paths": ["/usr/bin/rubymine", "/snap/bin/rubymine",
+                            "/opt/rubymine/bin/rubymine.sh"],
+        },
+        "rustrover": {
+            "name": "RustRover", "emoji": "🟧",
+            "cmds": ["rustrover", "rustrover64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/RustRover.app/Contents/MacOS/rustrover"],
+            "linux_paths": ["/usr/bin/rustrover", "/snap/bin/rustrover",
+                            "/opt/rustrover/bin/rustrover.sh"],
+        },
+        "datagrip": {
+            "name": "DataGrip", "emoji": "🟩",
+            "cmds": ["datagrip", "datagrip64"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/DataGrip.app/Contents/MacOS/datagrip"],
+            "linux_paths": ["/usr/bin/datagrip", "/snap/bin/datagrip",
+                            "/opt/datagrip/bin/datagrip.sh"],
+        },
+        "android-studio": {
+            "name": "Android Studio", "emoji": "🟢",
+            "cmds": ["studio", "studio64"],
+            "win_paths": [
+                win(program_files, "Android", "Android Studio", "bin", "studio64.exe"),
+                win(program_files, "Android", "Android Studio", "bin", "studio.exe"),
+                win(program_files_x86, "Android", "Android Studio", "bin", "studio64.exe"),
+                win(localapp, "Programs", "Android Studio", "bin", "studio64.exe"),
+            ],
+            "mac_paths": ["/Applications/Android Studio.app/Contents/MacOS/studio"],
+            "linux_paths": [
+                "/opt/android-studio/bin/studio.sh",
+                "/usr/local/android-studio/bin/studio.sh",
+                "/snap/bin/android-studio",
+                "/usr/bin/android-studio",
+            ],
+        },
+        "zed": {
+            "name": "Zed", "emoji": "⚡",
+            "cmds": ["zed"],
+            "win_paths": [
+                win(localapp, "Programs", "Zed", "Zed.exe"),
+            ],
+            "mac_paths": ["/Applications/Zed.app/Contents/MacOS/cli"],
+            "linux_paths": ["/usr/bin/zed", "/opt/zed/bin/zed"],
+        },
+        "fleet": {
+            "name": "Fleet", "emoji": "🚀",
+            "cmds": ["fleet"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/Fleet.app/Contents/MacOS/Fleet"],
+            "linux_paths": [],
+        },
+        "windsurf": {
+            "name": "Windsurf", "emoji": "🌊",
+            "cmds": ["windsurf"],
+            "win_paths": [
+                win(localapp, "Programs", "Windsurf", "bin", "windsurf.cmd"),
+                win(localapp, "Programs", "Windsurf", "Windsurf.exe"),
+            ],
+            "mac_paths": ["/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf"],
+            "linux_paths": ["/usr/bin/windsurf", "/opt/Windsurf/windsurf"],
+        },
+        "notepad++": {
+            "name": "Notepad++", "emoji": "📝",
+            "cmds": ["notepad++"],
+            "win_paths": [
+                win(program_files, "Notepad++", "notepad++.exe"),
+                win(program_files_x86, "Notepad++", "notepad++.exe"),
+                win(localapp, "Programs", "Notepad++", "notepad++.exe"),
+            ],
+            "mac_paths": [],
+            "linux_paths": [],
+        },
+        "notepad3": {
+            "name": "Notepad3", "emoji": "🗒️",
+            "cmds": ["notepad3"],
+            "win_paths": [
+                win(program_files, "Notepad3", "Notepad3.exe"),
+                win(program_files_x86, "Notepad3", "Notepad3.exe"),
+            ],
+            "mac_paths": [],
+            "linux_paths": [],
+        },
+        "ultraedit": {
+            "name": "UltraEdit", "emoji": "✏️",
+            "cmds": ["uedit64", "uedit32"],
+            "win_paths": [
+                win(program_files, "IDM Computer Solutions", "UltraEdit", "uedit64.exe"),
+                win(program_files_x86, "IDM Computer Solutions", "UltraEdit", "uedit32.exe"),
+            ],
+            "mac_paths": ["/Applications/UltraEdit.app/Contents/MacOS/UltraEdit"],
+            "linux_paths": ["/usr/bin/uex", "/opt/uex/uex"],
+        },
+        "emeditor": {
+            "name": "EmEditor", "emoji": "🟠",
+            "cmds": ["EmEditor"],
+            "win_paths": [
+                win(program_files, "EmEditor", "EmEditor.exe"),
+                win(program_files_x86, "EmEditor", "EmEditor.exe"),
+            ],
+            "mac_paths": [],
+            "linux_paths": [],
+        },
+        "editplus": {
+            "name": "EditPlus", "emoji": "🟡",
+            "cmds": ["editplus"],
+            "win_paths": [
+                win(program_files, "EditPlus", "editplus.exe"),
+                win(program_files_x86, "EditPlus", "editplus.exe"),
+            ],
+            "mac_paths": [],
+            "linux_paths": [],
+        },
+        "vs": {
+            "name": "Visual Studio", "emoji": "🟣",
+            "cmds": ["devenv"],
+            "win_paths": [
+                # VS 2022 / 2019 / 2017 常见位置（Community / Professional / Enterprise）
+                win(program_files, "Microsoft Visual Studio", "2022", "Community", "Common7", "IDE", "devenv.exe"),
+                win(program_files, "Microsoft Visual Studio", "2022", "Professional", "Common7", "IDE", "devenv.exe"),
+                win(program_files, "Microsoft Visual Studio", "2022", "Enterprise", "Common7", "IDE", "devenv.exe"),
+                win(program_files_x86, "Microsoft Visual Studio", "2019", "Community", "Common7", "IDE", "devenv.exe"),
+                win(program_files_x86, "Microsoft Visual Studio", "2019", "Professional", "Common7", "IDE", "devenv.exe"),
+                win(program_files_x86, "Microsoft Visual Studio", "2019", "Enterprise", "Common7", "IDE", "devenv.exe"),
+                win(program_files_x86, "Microsoft Visual Studio", "2017", "Community", "Common7", "IDE", "devenv.exe"),
+            ],
+            "mac_paths": [],  # VS for Mac 已停止维护
+            "linux_paths": [],
+        },
+        "xcode": {
+            "name": "Xcode", "emoji": "🔨",
+            "cmds": [],
+            "win_paths": [],
+            "mac_paths": ["/Applications/Xcode.app/Contents/MacOS/Xcode"],
+            "linux_paths": [],
+        },
+        "textmate": {
+            "name": "TextMate", "emoji": "📘",
+            "cmds": ["mate"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/TextMate.app/Contents/MacOS/TextMate"],
+            "linux_paths": [],
+        },
+        "bbedit": {
+            "name": "BBEdit", "emoji": "🔷",
+            "cmds": ["bbedit"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/BBEdit.app/Contents/MacOS/BBEdit"],
+            "linux_paths": [],
+        },
+        "nova": {
+            "name": "Nova", "emoji": "✨",
+            "cmds": ["nova"],
+            "win_paths": [],
+            "mac_paths": ["/Applications/Nova.app/Contents/MacOS/Nova"],
+            "linux_paths": [],
+        },
+        "eclipse": {
+            "name": "Eclipse", "emoji": "🌑",
+            "cmds": ["eclipse"],
+            "win_paths": [
+                win(program_files, "Eclipse Foundation", "eclipse.exe"),
+                win(program_files, "eclipse", "eclipse.exe"),
+                win(program_files_x86, "eclipse", "eclipse.exe"),
+            ],
+            "mac_paths": ["/Applications/Eclipse.app/Contents/MacOS/eclipse"],
+            "linux_paths": ["/usr/bin/eclipse", "/opt/eclipse/eclipse"],
+        },
+        "netbeans": {
+            "name": "NetBeans", "emoji": "🔵",
+            "cmds": ["netbeans"],
+            "win_paths": [
+                win(program_files, "NetBeans", "bin", "netbeans64.exe"),
+            ],
+            "mac_paths": ["/Applications/NetBeans.app/Contents/MacOS/netbeans"],
+            "linux_paths": ["/usr/bin/netbeans", "/opt/netbeans/bin/netbeans"],
+        },
+        "qtcreator": {
+            "name": "Qt Creator", "emoji": "🟢",
+            "cmds": ["qtcreator"],
+            "win_paths": [
+                win(program_files, "Qt", "Tools", "QtCreator", "bin", "qtcreator.exe"),
+            ],
+            "mac_paths": ["/Applications/Qt Creator.app/Contents/MacOS/Qt Creator"],
+            "linux_paths": ["/usr/bin/qtcreator", "/opt/qtcreator/bin/qtcreator"],
+        },
+        "kate": {
+            "name": "Kate", "emoji": "🐱",
+            "cmds": ["kate"],
+            "win_paths": [
+                win(program_files, "Kate", "bin", "kate.exe"),
+            ],
+            "mac_paths": ["/Applications/kate.app/Contents/MacOS/kate"],
+            "linux_paths": ["/usr/bin/kate", "/snap/bin/kate"],
+        },
+        "gedit": {
+            "name": "gedit", "emoji": "📄",
+            "cmds": ["gedit"],
+            "win_paths": [],
+            "mac_paths": [],
+            "linux_paths": ["/usr/bin/gedit", "/snap/bin/gedit"],
+        },
+        "geany": {
+            "name": "Geany", "emoji": "🟡",
+            "cmds": ["geany"],
+            "win_paths": [
+                win(program_files, "Geany", "bin", "geany.exe"),
+                win(program_files_x86, "Geany", "bin", "geany.exe"),
+            ],
+            "mac_paths": [],
+            "linux_paths": ["/usr/bin/geany", "/snap/bin/geany"],
+        },
     }
 
-    # JetBrains 系产品安装路径不固定，用 glob 兜底
+    return ides
+
+
+def _ide_extend_slow(ides):
+    """慢扫描：JetBrains Toolbox + 通用 glob 兜底。在传入的 ides 上原地扩充路径。"""
+    home = Path.home()
+    localapp = os.environ.get("LOCALAPPDATA", "")
+    program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
+    program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
+
+    # JetBrains 系产品
     jb_map_win = {
         "idea": ["idea64.exe", "idea.exe"],
         "pycharm": ["pycharm64.exe", "pycharm.exe"],
         "webstorm": ["webstorm64.exe", "webstorm.exe"],
         "goland": ["goland64.exe", "goland.exe"],
+        "clion": ["clion64.exe", "clion.exe"],
+        "rider": ["rider64.exe", "rider.exe"],
+        "phpstorm": ["phpstorm64.exe", "phpstorm.exe"],
+        "rubymine": ["rubymine64.exe", "rubymine.exe"],
+        "rustrover": ["rustrover64.exe", "rustrover.exe"],
+        "datagrip": ["datagrip64.exe", "datagrip.exe"],
+        "android-studio": ["studio64.exe", "studio.exe"],
     }
     jb_map_mac = {
-        # macOS 上 Toolbox 装的是 .app 包，用 Contents/MacOS/<binary>
-        "idea": ["idea"],
-        "pycharm": ["pycharm"],
-        "webstorm": ["webstorm"],
-        "goland": ["goland"],
+        "idea": ["idea"], "pycharm": ["pycharm"], "webstorm": ["webstorm"],
+        "goland": ["goland"], "clion": ["clion"], "rider": ["rider"],
+        "phpstorm": ["phpstorm"], "rubymine": ["rubymine"],
+        "rustrover": ["rustrover"], "datagrip": ["datagrip"],
+        "android-studio": ["studio"],
     }
     jb_map_nix = {
-        "idea": ["idea.sh"],
-        "pycharm": ["pycharm.sh"],
-        "webstorm": ["webstorm.sh"],
-        "goland": ["goland.sh"],
+        "idea": ["idea.sh"], "pycharm": ["pycharm.sh"], "webstorm": ["webstorm.sh"],
+        "goland": ["goland.sh"], "clion": ["clion.sh"], "rider": ["rider.sh"],
+        "phpstorm": ["phpstorm.sh"], "rubymine": ["rubymine.sh"],
+        "rustrover": ["rustrover.sh"], "datagrip": ["datagrip.sh"],
+        "android-studio": ["studio.sh"],
     }
 
     if sys.platform.startswith("win"):
@@ -340,76 +603,314 @@ def _ide_candidates():
             Path(program_files_x86) / "JetBrains",
             home / "AppData" / "Local" / "JetBrains" / "Toolbox" / "apps",
         ]
-        _fill_from_glob(ides, jb_roots, jb_map_win, "win_paths")
+        # 非系统盘上的 JetBrains 目录
+        for extra in _win_extra_install_roots():
+            jb_roots.append(extra / "JetBrains")
+        _fill_from_glob(ides, jb_roots, jb_map_win, "win_paths", max_depth=6)
     elif sys.platform == "darwin":
         jb_roots = [
             home / "Applications" / "JetBrains Toolbox",
             Path("/Applications/JetBrains Toolbox"),
             home / "Library" / "Application Support" / "JetBrains" / "Toolbox" / "apps",
         ]
-        # Toolbox 装的 .app 在 Contents/MacOS/<binary>
-        _fill_from_glob(ides, jb_roots, jb_map_mac, "mac_paths")
+        _fill_from_glob(ides, jb_roots, jb_map_mac, "mac_paths", max_depth=6)
     else:
         jb_roots = [
             home / ".local" / "share" / "JetBrains" / "Toolbox" / "apps",
             Path("/opt/JetBrains"),
         ]
-        _fill_from_glob(ides, jb_roots, jb_map_nix, "linux_paths")
+        _fill_from_glob(ides, jb_roots, jb_map_nix, "linux_paths", max_depth=6)
 
+    # 通用 glob 兜底：按 exe 名扫描常见根目录
+    generic_win = {
+        "notepad++": ["notepad++.exe"],
+        "sublime": ["sublime_text.exe"],
+        "vscode": ["Code.exe"],
+        "cursor": ["Cursor.exe"],
+        "windsurf": ["Windsurf.exe"],
+        "trae": ["Trae.exe"],
+        "zed": ["Zed.exe"],
+        "notepad3": ["Notepad3.exe"],
+        "ultraedit": ["uedit64.exe", "uedit32.exe"],
+        "emeditor": ["EmEditor.exe"],
+        "editplus": ["editplus.exe"],
+        "geany": ["geany.exe"],
+        "eclipse": ["eclipse.exe"],
+        "qtcreator": ["qtcreator.exe"],
+        "netbeans": ["netbeans64.exe"],
+    }
+    if sys.platform.startswith("win"):
+        scoop = home / "scoop" / "apps"
+        choco = Path("C:\\ProgramData\\chocolatey\\lib")
+        gen_roots = [
+            Path(program_files),
+            Path(program_files_x86),
+            Path(localapp) / "Programs" if localapp else None,
+            scoop,
+            choco,
+        ]
+        # 兜底：枚举所有非系统盘的常见安装目录
+        gen_roots.extend(_win_extra_install_roots())
+        gen_roots = [r for r in gen_roots if r]
+        _fill_from_glob(ides, gen_roots, generic_win, "win_paths", max_depth=6)
+    elif sys.platform == "darwin":
+        mac_bundle_map = {
+            "sublime": ["Sublime Text"],
+            "vscode": ["Visual Studio Code"],
+            "cursor": ["Cursor"],
+            "windsurf": ["Windsurf"],
+            "trae": ["Trae"],
+            "zed": ["Zed"],
+            "xcode": ["Xcode"],
+            "textmate": ["TextMate"],
+            "bbedit": ["BBEdit"],
+            "nova": ["Nova"],
+            "eclipse": ["Eclipse"],
+            "netbeans": ["NetBeans"],
+            "qtcreator": ["Qt Creator"],
+            "kate": ["kate"],
+            "fleet": ["Fleet"],
+        }
+        _fill_from_apps(ides, [Path("/Applications"), home / "Applications"], mac_bundle_map)
+    else:
+        gen_linux = {
+            "vscode": ["code"],
+            "vscode-insiders": ["code-insiders"],
+            "cursor": ["cursor"],
+            "sublime": ["sublime_text", "subl"],
+            "notepad++": ["notepad-plus-plus"],
+            "eclipse": ["eclipse"],
+            "netbeans": ["netbeans"],
+            "qtcreator": ["qtcreator"],
+            "geany": ["geany"],
+            "gedit": ["gedit"],
+            "kate": ["kate"],
+            "zed": ["zed"],
+        }
+        _fill_from_glob(
+            ides,
+            [Path("/opt"), Path("/usr/local"),
+             Path("/var/lib/flatpak/exports/bin"),
+             home / ".local" / "share" / "flatpak" / "exports" / "bin"],
+            gen_linux, "linux_paths", max_depth=5,
+        )
     return ides
 
 
-def _fill_from_glob(ides, roots, exe_map, target_key):
-    """在 roots 下 rglob 匹配 exe_map 里的可执行文件，写入对应 ides[id][target_key]。"""
-    for ide_id, exe_names in exe_map.items():
+def _win_extra_install_roots():
+    """Windows：列出所有可用盘符下的常见安装目录（非系统盘）。
+
+    比如返回 [Path("D:\\Program Files"), Path("D:\\Program Files (x86)"),
+             Path("D:\\Programs"), Path("D:\\AS"), Path("E:\\Program Files"), ...]
+    只返回实际存在的目录。
+    """
+    if not sys.platform.startswith("win"):
+        return []
+    import string
+    common_subdirs = [
+        "Program Files", "Program Files (x86)",
+        "Programs", "Apps", "Applications",
+        "AS", "Tools", "SDK", "Dev",
+    ]
+    system_drive = os.environ.get("SystemDrive", "C:").rstrip("\\").rstrip("/")
+    extras = []
+    for letter in string.ascii_uppercase:
+        drive = f"{letter}:\\"
+        if not os.path.isdir(drive):
+            continue
+        if f"{letter}:" .lower() == system_drive.lower():
+            continue  # 系统盘的这些目录已经由 ProgramFiles/ProgramFiles(x86) 覆盖
+        for sub in common_subdirs:
+            p = Path(drive) / sub
+            if p.is_dir():
+                extras.append(p)
+    return extras
+
+
+def _fill_from_apps(ides, roots, bundle_map):
+    """macOS：在 /Applications 之类目录下，按 .app 名匹配。写入 mac_paths。"""
+    for ide_id, names in bundle_map.items():
         for root in roots:
             if not root.is_dir():
                 continue
-            for exe in exe_names:
-                try:
-                    for hit in root.rglob(exe):
-                        if hit.is_file():
-                            ides[ide_id][target_key].append(str(hit))
-                            break
-                except OSError:
-                    pass
+            for name in names:
+                app_dir = root / f"{name}.app"
+                if app_dir.is_dir():
+                    # 优先找 Contents/Resources/app/bin/<cli>，其次 Contents/MacOS/<binary>
+                    macos_dir = app_dir / "Contents" / "MacOS"
+                    picked = None
+                    if macos_dir.is_dir():
+                        try:
+                            for p in macos_dir.iterdir():
+                                if p.is_file() and os.access(p, os.X_OK):
+                                    picked = p
+                                    break
+                        except OSError:
+                            pass
+                    if picked is not None:
+                        ides[ide_id]["mac_paths"].append(str(picked))
+                    break
+
+
+def _fill_from_glob(ides, roots, exe_map, target_key, max_depth=None):
+    """在 roots 下按文件名匹配可执行文件，写入 ides[id][target_key]。
+
+    max_depth: 限制递归深度（相对 root）。None 表示无限（走 rglob，快但要求 root 就是安装目录）。
+               整数则用 BFS 手工限深，避免在 C:\\Program Files 这种大目录下爆炸。
+    """
+    for ide_id, exe_names in exe_map.items():
+        target = ides.get(ide_id, {}).get(target_key)
+        if target is None:
+            continue
+        for root in roots:
+            if not root.is_dir():
+                continue
+            hit_path = _find_file_by_names(root, set(exe_names), max_depth)
+            if hit_path:
+                target.append(hit_path)
     return ides
 
 
-_ide_cache = None
+def _find_file_by_names(root: Path, names: set, max_depth):
+    """在 root 下查找文件名在 names 集合里的第一个文件；max_depth=None 用 rglob，否则 BFS 限深。"""
+    try:
+        if max_depth is None:
+            for name in names:
+                for hit in root.rglob(name):
+                    if hit.is_file():
+                        return str(hit)
+            return None
+        # BFS
+        stack = [(root, 0)]
+        while stack:
+            cur, depth = stack.pop()
+            try:
+                for entry in os.scandir(cur):
+                    try:
+                        if entry.is_file(follow_symlinks=False) and entry.name in names:
+                            return entry.path
+                        if entry.is_dir(follow_symlinks=False) and depth < max_depth:
+                            stack.append((Path(entry.path), depth + 1))
+                    except OSError:
+                        continue
+            except (OSError, PermissionError):
+                continue
+        return None
+    except OSError:
+        return None
+
+
+_ide_cache = None                # 上次快扫描 + 慢扫描（若已完成）合并后的结果
 _ide_cache_lock = threading.Lock()
+_ide_scan_state = {
+    "scanning": False,           # 后台是否正在跑慢扫描
+    "generation": 0,             # 每次慢扫描完成 +1，前端据此判断"有没有新结果"
+    "started_at": 0.0,
+    "finished_at": 0.0,
+}
+_ide_scan_state_lock = threading.Lock()
+
+
+def _run_detect(candidates):
+    """给定候选表，扫描并返回 {id: {name, emoji, exe}}。纯计算，无副作用。"""
+    import shutil
+    found = {}
+    for ide_id, info in candidates.items():
+        exe = None
+        for cmd in info.get("cmds", []):
+            p = shutil.which(cmd)
+            if p:
+                exe = p
+                break
+        if not exe:
+            if sys.platform.startswith("win"):
+                paths = info.get("win_paths", [])
+            elif sys.platform == "darwin":
+                paths = info.get("mac_paths", [])
+            else:
+                paths = info.get("linux_paths", [])
+            for p in paths:
+                if p and os.path.isfile(p):
+                    exe = p
+                    break
+        if exe:
+            found[ide_id] = {"name": info["name"], "emoji": info["emoji"], "exe": exe}
+    return found
+
+
+def _slow_scan_worker():
+    """后台线程：跑慢扫描并合并进 _ide_cache。"""
+    global _ide_cache
+    try:
+        cands = _ide_candidates()
+        _ide_extend_slow(cands)
+        found = _run_detect(cands)
+        with _ide_cache_lock:
+            # 合并：慢扫描的结果覆盖/补充快扫描
+            if _ide_cache is None:
+                _ide_cache = found
+            else:
+                merged = dict(_ide_cache)
+                merged.update(found)
+                _ide_cache = merged
+    finally:
+        with _ide_scan_state_lock:
+            _ide_scan_state["scanning"] = False
+            _ide_scan_state["finished_at"] = _now()
+            _ide_scan_state["generation"] += 1
+
+
+def _now():
+    import time
+    return time.time()
+
+
+def _start_slow_scan_if_idle():
+    """若后台扫描没有在跑，就启动一个。返回是否新启动了。"""
+    with _ide_scan_state_lock:
+        if _ide_scan_state["scanning"]:
+            return False
+        _ide_scan_state["scanning"] = True
+        _ide_scan_state["started_at"] = _now()
+    threading.Thread(target=_slow_scan_worker, daemon=True).start()
+    return True
 
 
 def detect_ides():
-    """返回 {id: {name, emoji, exe}}，只保留能找到可执行文件的。缓存全局。"""
+    """返回当前已知的 IDE 集合（快扫描 + 已完成的慢扫描结果）。
+
+    首次调用时立即做一次快扫描，同时在后台线程启动慢扫描（不阻塞）。
+    """
     global _ide_cache
     with _ide_cache_lock:
         if _ide_cache is not None:
-            return _ide_cache
-        import shutil
-        found = {}
-        for ide_id, info in _ide_candidates().items():
-            exe = None
-            for cmd in info["cmds"]:
-                p = shutil.which(cmd)
-                if p:
-                    exe = p
-                    break
-            if not exe:
-                if sys.platform.startswith("win"):
-                    paths = info["win_paths"]
-                elif sys.platform == "darwin":
-                    paths = info["mac_paths"]
-                else:
-                    paths = info["linux_paths"]
-                for p in paths:
-                    if p and os.path.isfile(p):
-                        exe = p
-                        break
-            if exe:
-                found[ide_id] = {"name": info["name"], "emoji": info["emoji"], "exe": exe}
-        _ide_cache = found
-        return found
+            snapshot = dict(_ide_cache)
+        else:
+            snapshot = None
+    if snapshot is None:
+        # 首次：先做一次快扫描
+        cands = _ide_candidates()
+        found = _run_detect(cands)
+        with _ide_cache_lock:
+            if _ide_cache is None:
+                _ide_cache = found
+            snapshot = dict(_ide_cache)
+        # 顺手启动一次后台慢扫描
+        _start_slow_scan_if_idle()
+    return snapshot
+
+
+def get_scan_state():
+    with _ide_scan_state_lock:
+        return dict(_ide_scan_state)
+
+
+def rescan_ides():
+    """强制重扫：清缓存，重跑快扫描，并触发后台慢扫描。返回快扫描结果。"""
+    global _ide_cache
+    with _ide_cache_lock:
+        _ide_cache = None
+    return detect_ides()
 
 
 def open_in_ide(ide_id: str, target: Path) -> tuple:
@@ -665,6 +1166,60 @@ SCROLL_JS = """
             if (btn) btn.disabled = false;
         });
     });
+
+    // ---- IDE 扫描状态轮询：generation 变化就重绘按钮列表 ----
+    (function pollIdes() {
+        var container = document.getElementById('fs-ide-list');
+        if (!container) return;
+        var lastGen = -1;
+        var stopAt = Date.now() + 5 * 60 * 1000; // 最多轮询 5 分钟
+        function render(list) {
+            var rel = container.getAttribute('data-current-rel') || '';
+            if (!list || !list.length) {
+                container.innerHTML = '<div class="history-empty" style="margin-top:6px;">未检测到 IDE</div>';
+                return;
+            }
+            var parts = [];
+            list.forEach(function (ide) {
+                var f = document.createElement('form');
+                f.method = 'post';
+                f.action = '/open-ide';
+                f.setAttribute('data-ajax', '1');
+                f.style.marginTop = '6px';
+                f.innerHTML =
+                    '<input type="hidden" name="rel">' +
+                    '<input type="hidden" name="ide">' +
+                    '<button type="submit" ' +
+                    'style="background:#1d1d1f;padding:6px 10px;font-size:13px;width:100%;"></button>';
+                f.querySelector('input[name=rel]').value = rel;
+                f.querySelector('input[name=ide]').value = ide.id;
+                var btn = f.querySelector('button');
+                btn.title = ide.exe;
+                btn.textContent = (ide.emoji || '') + ' 在 ' + ide.name + ' 打开';
+                parts.push(f);
+            });
+            container.innerHTML = '';
+            parts.forEach(function (n) { container.appendChild(n); });
+        }
+        function tick() {
+            fetch('/ides/status', { headers: { 'X-Requested-With': 'fetch' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.generation !== lastGen) {
+                        if (lastGen !== -1 && data.ides && data.ides.length) {
+                            toast('IDE 扫描完成，共 ' + data.ides.length + ' 个', 'ok');
+                        }
+                        lastGen = data.generation;
+                        render(data.ides);
+                    }
+                    if (data.scanning && Date.now() < stopAt) {
+                        setTimeout(tick, 3000);
+                    }
+                })
+                .catch(function () { /* 忽略 */ });
+        }
+        tick();
+    })();
 })();
 </script>
 """
@@ -766,21 +1321,36 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
         )
 
     # 检测到的 IDE 按钮
-    ide_html = ""
     ides = detect_ides()
-    if ides:
-        rows = []
-        for ide_id, info in ides.items():
-            rows.append(
-                f'<form method="post" action="/open-ide" data-ajax="1" style="margin-top:6px;">'
-                f'  <input type="hidden" name="rel" value="{html.escape(current_rel)}">'
-                f'  <input type="hidden" name="ide" value="{html.escape(ide_id)}">'
-                f'  <button type="submit" title="{html.escape(info["exe"])}"'
-                f'    style="background:#1d1d1f;padding:6px 10px;font-size:13px;width:100%;">'
-                f'    {info["emoji"]} 在 {html.escape(info["name"])} 打开</button>'
-                f'</form>'
-            )
-        ide_html = "".join(rows)
+    ide_rows = []
+    for ide_id, info in ides.items():
+        ide_rows.append(
+            f'<form method="post" action="/open-ide" data-ajax="1" style="margin-top:6px;">'
+            f'  <input type="hidden" name="rel" value="{html.escape(current_rel)}">'
+            f'  <input type="hidden" name="ide" value="{html.escape(ide_id)}">'
+            f'  <button type="submit" title="{html.escape(info["exe"])}"'
+            f'    style="background:#1d1d1f;padding:6px 10px;font-size:13px;width:100%;">'
+            f'    {info["emoji"]} 在 {html.escape(info["name"])} 打开</button>'
+            f'</form>'
+        )
+    rescan_form = (
+        '<form method="post" action="/ides/rescan" data-ajax="1" style="margin-top:8px;">'
+        '  <button type="submit" style="background:transparent;color:#0071e3;'
+        '    border:1px dashed #0071e3;padding:5px 10px;font-size:12px;width:100%;">'
+        '    🔄 重新扫描 IDE</button>'
+        '</form>'
+    )
+    empty_hint = (
+        '' if ide_rows
+        else '<div class="history-empty" style="margin-top:6px;" data-ide-empty="1">'
+             '未检测到 IDE（后台仍在扫描...）</div>'
+    )
+    ide_inner = "".join(ide_rows) + empty_hint
+    ide_html = (
+        f'<div id="fs-ide-list" data-current-rel="{html.escape(current_rel)}">'
+        f'{ide_inner}</div>'
+        f'{rescan_form}'
+    )
 
     here_actions = f"""
     <h2 class="mt">📍 当前位置</h2>
@@ -1183,6 +1753,19 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect(back)
             return
 
+        if path == "/ides/status":
+            ides = detect_ides()
+            state = get_scan_state()
+            self._send_json({
+                "ides": [
+                    {"id": k, "name": v["name"], "emoji": v["emoji"], "exe": v["exe"]}
+                    for k, v in ides.items()
+                ],
+                "scanning": state["scanning"],
+                "generation": state["generation"],
+            })
+            return
+
         if path.startswith("/browse/") or path == "/browse":
             sub = path[len("/browse/"):] if path.startswith("/browse/") else ""
             target = safe_resolve(sub)
@@ -1295,6 +1878,25 @@ class Handler(BaseHTTPRequestHandler):
                 self._redirect(back_url + "?msg=" + quote(f"已用 {ide_name} 打开") + "&kind=ok")
             else:
                 self._redirect(back_url + "?msg=" + quote(f"打开失败: {err}") + "&kind=err")
+            return
+
+        if path == "/ides/rescan":
+            is_ajax = self.headers.get("X-Requested-With", "") == "fetch"
+            found = rescan_ides()
+            names = [info["name"] for info in found.values()]
+            msg = (
+                f"快速扫描已完成（{len(names)} 个：{', '.join(names)}），"
+                "后台仍在深度扫描..."
+                if names else "快速扫描未检测到 IDE，后台仍在深度扫描..."
+            )
+            if is_ajax:
+                self._send_json({
+                    "ok": True, "msg": msg,
+                    "ides": list(found.keys()),
+                    "scanning": get_scan_state()["scanning"],
+                })
+            else:
+                self._redirect("/?msg=" + quote(msg) + "&kind=ok")
             return
 
         if path == "/roots/pick":
