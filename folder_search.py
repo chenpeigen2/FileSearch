@@ -2113,6 +2113,72 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
+def kill_port_listeners(port: int) -> int:
+    """终止占用指定端口的进程，便于重复启动。返回被终止的进程数。"""
+    import subprocess
+    import signal
+
+    killed = 0
+    my_pid = os.getpid()
+
+    if sys.platform.startswith("win"):
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True, text=True, timeout=10,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            return 0
+        if result.returncode != 0:
+            return 0
+        suffix = f":{port}"
+        pids = set()
+        for line in result.stdout.splitlines():
+            if "LISTENING" not in line:
+                continue
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            if parts[1].endswith(suffix):
+                pids.add(parts[-1])
+        for pid_str in pids:
+            if not pid_str.isdigit() or int(pid_str) == my_pid:
+                continue
+            try:
+                r = subprocess.run(
+                    ["taskkill", "/F", "/PID", pid_str],
+                    capture_output=True, timeout=5,
+                )
+                if r.returncode == 0:
+                    killed += 1
+            except (subprocess.TimeoutExpired, OSError):
+                pass
+        return killed
+
+    try:
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return 0
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    for pid_str in result.stdout.split():
+        try:
+            pid = int(pid_str)
+        except ValueError:
+            continue
+        if pid == my_pid:
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed += 1
+        except (ProcessLookupError, PermissionError):
+            pass
+    return killed
+
+
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
         prog="folder_search",
@@ -2156,6 +2222,10 @@ def main():
     ROOT_DIR = root
     HOST = args.host
     PORT = args.port
+
+    n = kill_port_listeners(PORT)
+    if n:
+        print(f"已终止占用端口 {PORT} 的 {n} 个进程")
 
     # 把启动根目录加入历史
     add_root(str(ROOT_DIR))
