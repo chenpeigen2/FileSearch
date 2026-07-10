@@ -126,6 +126,60 @@ def current_root() -> Path:
         return r
     return ROOT_DIR
 
+
+# 保证同一时间只有一个文件选择对话框
+_picker_lock = threading.Lock()
+
+
+def pick_folder_dialog(initial_dir: str = "") -> tuple:
+    """在子进程里调起系统文件夹选择器（tkinter）。返回 (ok, path_or_err)。
+
+    放到子进程执行有两个原因：
+    - tkinter 的 mainloop / Tk 实例必须在主线程，服务器工作线程里直接用会报错；
+    - 对话框结束后进程退出，能干净地释放 Tk 资源。
+    """
+    import subprocess
+    code = (
+        "import sys\n"
+        "try:\n"
+        "    import tkinter as tk\n"
+        "    from tkinter import filedialog\n"
+        "except Exception as e:\n"
+        "    sys.stderr.write('tkinter unavailable: ' + str(e))\n"
+        "    sys.exit(2)\n"
+        "init = sys.argv[1] if len(sys.argv) > 1 else ''\n"
+        "root = tk.Tk()\n"
+        "root.withdraw()\n"
+        "try:\n"
+        "    root.attributes('-topmost', True)\n"
+        "except Exception:\n"
+        "    pass\n"
+        "p = filedialog.askdirectory(title='选择要浏览的文件夹', initialdir=init or None, mustexist=True)\n"
+        "root.destroy()\n"
+        "sys.stdout.write(p or '')\n"
+    )
+    if not _picker_lock.acquire(blocking=False):
+        return False, "已有一个选择窗口打开，请先处理"
+    try:
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", code, initial_dir or ""],
+                capture_output=True, timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            return False, "选择对话框超时"
+        except OSError as e:
+            return False, f"无法启动选择器: {e}"
+        if result.returncode != 0:
+            err = (result.stderr or b"").decode("utf-8", errors="replace").strip()
+            return False, err or "选择器启动失败（可能未安装 tkinter）"
+        picked = (result.stdout or b"").decode("utf-8", errors="replace").strip()
+        if not picked:
+            return False, "已取消"
+        return True, picked
+    finally:
+        _picker_lock.release()
+
 BASE_CSS = """
 * { box-sizing: border-box; }
 body {
@@ -292,6 +346,23 @@ SCROLL_JS = """
     }
     // 兜底：load 之后再来一次
     window.addEventListener('load', function () { setTimeout(restore, 30); });
+
+    // ---- 修正 autofocus 输入框：光标移到末尾 ----
+    function caretToEnd() {
+        var el = document.querySelector('input[autofocus]');
+        if (!el || typeof el.value !== 'string' || !el.value) return;
+        try {
+            var n = el.value.length;
+            // 有的浏览器需要先 focus 才能设置 selection
+            el.focus();
+            el.setSelectionRange(n, n);
+        } catch (e) {}
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', caretToEnd);
+    } else {
+        caretToEnd();
+    }
 })();
 </script>
 """
@@ -386,6 +457,9 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
     <h2>📌 当前根目录</h2>
     <div class="hint"><code>{html.escape(cur_root_str)}</code></div>
     <a class="back" href="/roots" style="margin:0;">🗂️ 管理根目录</a>
+    <form method="post" action="/roots/pick" style="margin-top:8px;">
+        <button type="submit" style="background:#5a5a5f;padding:6px 10px;font-size:13px;">📂 浏览选择文件夹...</button>
+    </form>
 
     <div class="history-header">
         <h2>🔀 快速切换</h2>
@@ -453,6 +527,10 @@ def render_roots(msg: str = "", msg_kind: str = "") -> str:
         <form class="search-box" method="post" action="/roots/add">
             <input type="text" name="path" placeholder="输入绝对路径，如 D:\\Downloads 或 /home/user/docs" required>
             <button type="submit">添加并切换</button>
+        </form>
+        <form method="post" action="/roots/pick" style="margin:-10px 0 20px;">
+            <button type="submit" style="background:#5a5a5f;">📂 浏览选择文件夹...</button>
+            <span style="color:#888;font-size:12px;margin-left:8px;">会在服务器上弹出系统选择器</span>
         </form>
         <h2 style="font-size:16px;margin:20px 0 10px;">历史根目录</h2>
         {list_html}
@@ -801,6 +879,25 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if not p.is_dir():
                 self._redirect("/roots?msg=" + quote(f"目录不存在: {new_root}") + "&kind=err")
+                return
+            add_root(str(p))
+            clear_history()
+            self._redirect_with_cookie("/?msg=" + quote(f"已切换到 {p}") + "&kind=ok", str(p))
+            return
+
+        if path == "/roots/pick":
+            initial = str(current_root())
+            ok, result = pick_folder_dialog(initial)
+            if not ok:
+                self._redirect("/roots?msg=" + quote(f"未切换：{result}") + "&kind=err")
+                return
+            try:
+                p = Path(result).expanduser().resolve()
+            except OSError:
+                self._redirect("/roots?msg=" + quote("选择的路径无效") + "&kind=err")
+                return
+            if not p.is_dir():
+                self._redirect("/roots?msg=" + quote(f"目录不存在: {result}") + "&kind=err")
                 return
             add_root(str(p))
             clear_history()
