@@ -623,6 +623,48 @@ SCROLL_JS = """
     } else {
         caretToEnd();
     }
+
+    // ---- toast ----
+    function toast(msg, kind) {
+        var el = document.createElement('div');
+        el.textContent = msg;
+        el.style.cssText =
+            'position:fixed;left:50%;top:20px;transform:translateX(-50%);' +
+            'padding:10px 18px;border-radius:8px;font-size:14px;z-index:9999;' +
+            'box-shadow:0 4px 12px rgba(0,0,0,.15);opacity:0;transition:opacity .2s;' +
+            (kind === 'err'
+                ? 'background:#fdecea;color:#a12525;border:1px solid #f2b8b3;'
+                : 'background:#e5f6ea;color:#1d7a3c;border:1px solid #a7d8b6;');
+        document.body.appendChild(el);
+        requestAnimationFrame(function () { el.style.opacity = '1'; });
+        setTimeout(function () {
+            el.style.opacity = '0';
+            setTimeout(function () { el.remove(); }, 250);
+        }, 2200);
+    }
+
+    // ---- AJAX 表单：不刷新页面，不动历史 ----
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || form.getAttribute('data-ajax') !== '1') return;
+        e.preventDefault();
+        var btn = form.querySelector('button[type=submit]');
+        if (btn) btn.disabled = true;
+        var fd = new FormData(form);
+        fetch(form.action, {
+            method: form.method || 'POST',
+            body: new URLSearchParams(fd),
+            headers: { 'X-Requested-With': 'fetch' },
+        }).then(function (r) {
+            return r.json().catch(function () { return { ok: r.ok, msg: r.statusText }; });
+        }).then(function (data) {
+            toast(data.msg || (data.ok ? '完成' : '失败'), data.ok ? 'ok' : 'err');
+        }).catch(function (err) {
+            toast('请求失败: ' + err, 'err');
+        }).finally(function () {
+            if (btn) btn.disabled = false;
+        });
+    });
 })();
 </script>
 """
@@ -730,7 +772,7 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
         rows = []
         for ide_id, info in ides.items():
             rows.append(
-                f'<form method="post" action="/open-ide" style="margin-top:6px;">'
+                f'<form method="post" action="/open-ide" data-ajax="1" style="margin-top:6px;">'
                 f'  <input type="hidden" name="rel" value="{html.escape(current_rel)}">'
                 f'  <input type="hidden" name="ide" value="{html.escape(ide_id)}">'
                 f'  <button type="submit" title="{html.escape(info["exe"])}"'
@@ -743,7 +785,7 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
     here_actions = f"""
     <h2 class="mt">📍 当前位置</h2>
     <div class="hint"><code>{html.escape(cur_abs)}</code></div>
-    <form method="post" action="/open">
+    <form method="post" action="/open" data-ajax="1">
         <input type="hidden" name="rel" value="{html.escape(current_rel)}">
         <button type="submit" style="background:#5a5a5f;padding:6px 10px;font-size:13px;width:100%;">🗔 在系统打开</button>
     </form>
@@ -1060,6 +1102,14 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_json(self, obj, status: int = 200):
+        data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _send_file(self, path: Path):
         try:
             size = path.stat().st_size
@@ -1203,14 +1253,19 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/open":
             rel = (form.get("rel", [""])[0] or "").strip()
+            is_ajax = self.headers.get("X-Requested-With", "") == "fetch"
             target = safe_resolve(rel)
+            back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
             if target is None or not target.is_dir():
-                back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
-                self._redirect(back_url + "?msg=" + quote("目录不存在") + "&kind=err")
+                if is_ajax:
+                    self._send_json({"ok": False, "msg": "目录不存在"}, 400)
+                else:
+                    self._redirect(back_url + "?msg=" + quote("目录不存在") + "&kind=err")
                 return
             ok, err = open_in_system(target)
-            back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
-            if ok:
+            if is_ajax:
+                self._send_json({"ok": ok, "msg": "已在系统打开" if ok else f"打开失败: {err}"})
+            elif ok:
                 self._redirect(back_url + "?msg=" + quote("已在系统打开") + "&kind=ok")
             else:
                 self._redirect(back_url + "?msg=" + quote(f"打开失败: {err}") + "&kind=err")
@@ -1219,14 +1274,24 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/open-ide":
             rel = (form.get("rel", [""])[0] or "").strip()
             ide_id = (form.get("ide", [""])[0] or "").strip()
+            is_ajax = self.headers.get("X-Requested-With", "") == "fetch"
             target = safe_resolve(rel)
             back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
             if target is None or not target.is_dir():
-                self._redirect(back_url + "?msg=" + quote("目录不存在") + "&kind=err")
+                if is_ajax:
+                    self._send_json({"ok": False, "msg": "目录不存在"}, 400)
+                else:
+                    self._redirect(back_url + "?msg=" + quote("目录不存在") + "&kind=err")
                 return
+
             ok, err = open_in_ide(ide_id, target)
-            if ok:
-                ide_name = detect_ides().get(ide_id, {}).get("name", ide_id)
+            ide_name = detect_ides().get(ide_id, {}).get("name", ide_id)
+            if is_ajax:
+                self._send_json({
+                    "ok": ok,
+                    "msg": f"已用 {ide_name} 打开" if ok else f"打开失败: {err}",
+                })
+            elif ok:
                 self._redirect(back_url + "?msg=" + quote(f"已用 {ide_name} 打开") + "&kind=ok")
             else:
                 self._redirect(back_url + "?msg=" + quote(f"打开失败: {err}") + "&kind=err")
