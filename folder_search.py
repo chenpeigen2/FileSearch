@@ -184,14 +184,25 @@ def pick_folder_dialog(initial_dir: str = "") -> tuple:
 def open_in_system(path: Path) -> tuple:
     """在服务器上用系统默认方式打开一个目录/文件。返回 (ok, err)。"""
     import subprocess
+    import shutil
     try:
         if sys.platform.startswith("win"):
             os.startfile(str(path))  # type: ignore[attr-defined]
-        elif sys.platform == "darwin":
+            return True, ""
+        if sys.platform == "darwin":
             subprocess.Popen(["open", str(path)])
-        else:
-            subprocess.Popen(["xdg-open", str(path)])
-        return True, ""
+            return True, ""
+        # Linux/BSD：优先 xdg-open，其次尝试各桌面自带的文件管理器
+        for cmd in ("xdg-open", "gio", "nautilus", "dolphin", "thunar", "pcmanfm", "nemo"):
+            exe = shutil.which(cmd)
+            if not exe:
+                continue
+            if cmd == "gio":
+                subprocess.Popen([exe, "open", str(path)])
+            else:
+                subprocess.Popen([exe, str(path)])
+            return True, ""
+        return False, "未找到 xdg-open 或可用的文件管理器"
     except OSError as e:
         return False, str(e)
     except Exception as e:  # noqa: BLE001
@@ -261,7 +272,10 @@ def _ide_candidates():
                 win(program_files, "Sublime Text", "sublime_text.exe"),
             ],
             "mac_paths": ["/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"],
-            "linux_paths": ["/usr/bin/subl", "/snap/bin/subl"],
+            "linux_paths": [
+                "/usr/bin/subl", "/snap/bin/subl", "/snap/bin/sublime-text",
+                "/opt/sublime_text/sublime_text", "/usr/bin/sublime_text",
+            ],
         },
         "idea": {
             "name": "IntelliJ IDEA", "emoji": "🟥",
@@ -269,7 +283,8 @@ def _ide_candidates():
             "win_paths": [],  # 由 glob 补充
             "mac_paths": ["/Applications/IntelliJ IDEA.app/Contents/MacOS/idea",
                           "/Applications/IntelliJ IDEA CE.app/Contents/MacOS/idea"],
-            "linux_paths": ["/usr/bin/idea", "/snap/bin/intellij-idea-community"],
+            "linux_paths": ["/usr/bin/idea", "/snap/bin/intellij-idea-community",
+                            "/snap/bin/intellij-idea-ultimate", "/opt/idea/bin/idea.sh"],
         },
         "pycharm": {
             "name": "PyCharm", "emoji": "🟨",
@@ -277,48 +292,87 @@ def _ide_candidates():
             "win_paths": [],
             "mac_paths": ["/Applications/PyCharm.app/Contents/MacOS/pycharm",
                           "/Applications/PyCharm CE.app/Contents/MacOS/pycharm"],
-            "linux_paths": ["/usr/bin/pycharm", "/snap/bin/pycharm-community"],
+            "linux_paths": ["/usr/bin/pycharm", "/snap/bin/pycharm-community",
+                            "/snap/bin/pycharm-professional", "/opt/pycharm/bin/pycharm.sh"],
         },
         "webstorm": {
             "name": "WebStorm", "emoji": "🟫",
             "cmds": ["webstorm", "webstorm64"],
             "win_paths": [],
             "mac_paths": ["/Applications/WebStorm.app/Contents/MacOS/webstorm"],
-            "linux_paths": ["/usr/bin/webstorm", "/snap/bin/webstorm"],
+            "linux_paths": ["/usr/bin/webstorm", "/snap/bin/webstorm",
+                            "/opt/webstorm/bin/webstorm.sh"],
         },
         "goland": {
             "name": "GoLand", "emoji": "🟩",
             "cmds": ["goland", "goland64"],
             "win_paths": [],
             "mac_paths": ["/Applications/GoLand.app/Contents/MacOS/goland"],
-            "linux_paths": ["/usr/bin/goland", "/snap/bin/goland"],
+            "linux_paths": ["/usr/bin/goland", "/snap/bin/goland",
+                            "/opt/goland/bin/goland.sh"],
         },
     }
 
-    # JetBrains 系产品在 Windows 上安装路径不固定，用 glob 兜底
+    # JetBrains 系产品安装路径不固定，用 glob 兜底
+    jb_map_win = {
+        "idea": ["idea64.exe", "idea.exe"],
+        "pycharm": ["pycharm64.exe", "pycharm.exe"],
+        "webstorm": ["webstorm64.exe", "webstorm.exe"],
+        "goland": ["goland64.exe", "goland.exe"],
+    }
+    jb_map_mac = {
+        # macOS 上 Toolbox 装的是 .app 包，用 Contents/MacOS/<binary>
+        "idea": ["idea"],
+        "pycharm": ["pycharm"],
+        "webstorm": ["webstorm"],
+        "goland": ["goland"],
+    }
+    jb_map_nix = {
+        "idea": ["idea.sh"],
+        "pycharm": ["pycharm.sh"],
+        "webstorm": ["webstorm.sh"],
+        "goland": ["goland.sh"],
+    }
+
     if sys.platform.startswith("win"):
         jb_roots = [
             Path(program_files) / "JetBrains",
             Path(program_files_x86) / "JetBrains",
             home / "AppData" / "Local" / "JetBrains" / "Toolbox" / "apps",
         ]
-        jb_map = {
-            "idea": ["idea64.exe", "idea.exe"],
-            "pycharm": ["pycharm64.exe", "pycharm.exe"],
-            "webstorm": ["webstorm64.exe", "webstorm.exe"],
-            "goland": ["goland64.exe", "goland.exe"],
-        }
-        for ide_id, exe_names in jb_map.items():
-            for root in jb_roots:
-                if not root.is_dir():
-                    continue
-                for exe in exe_names:
-                    try:
-                        for hit in root.rglob(exe):
-                            ides[ide_id]["win_paths"].append(str(hit))
+        _fill_from_glob(ides, jb_roots, jb_map_win, "win_paths")
+    elif sys.platform == "darwin":
+        jb_roots = [
+            home / "Applications" / "JetBrains Toolbox",
+            Path("/Applications/JetBrains Toolbox"),
+            home / "Library" / "Application Support" / "JetBrains" / "Toolbox" / "apps",
+        ]
+        # Toolbox 装的 .app 在 Contents/MacOS/<binary>
+        _fill_from_glob(ides, jb_roots, jb_map_mac, "mac_paths")
+    else:
+        jb_roots = [
+            home / ".local" / "share" / "JetBrains" / "Toolbox" / "apps",
+            Path("/opt/JetBrains"),
+        ]
+        _fill_from_glob(ides, jb_roots, jb_map_nix, "linux_paths")
+
+    return ides
+
+
+def _fill_from_glob(ides, roots, exe_map, target_key):
+    """在 roots 下 rglob 匹配 exe_map 里的可执行文件，写入对应 ides[id][target_key]。"""
+    for ide_id, exe_names in exe_map.items():
+        for root in roots:
+            if not root.is_dir():
+                continue
+            for exe in exe_names:
+                try:
+                    for hit in root.rglob(exe):
+                        if hit.is_file():
+                            ides[ide_id][target_key].append(str(hit))
                             break
-                    except OSError:
-                        pass
+                except OSError:
+                    pass
     return ides
 
 
@@ -367,7 +421,17 @@ def open_in_ide(ide_id: str, target: Path) -> tuple:
         return False, "未检测到该 IDE"
     exe = info["exe"]
     try:
-        # 所有主流 IDE 都支持 `<exe> <path>` 打开目录
+        # macOS：如果指向的是 .app 里的原生二进制，用 `open -a <AppName> <path>` 更稳
+        if sys.platform == "darwin" and ".app/Contents/MacOS/" in exe.replace("\\", "/"):
+            # 从路径里提取 <AppName>
+            marker = "/Applications/"
+            app_path = exe
+            i = app_path.find(".app/")
+            if i > 0:
+                # 找到 .app 之前的完整 app 路径
+                app_bundle = app_path[: i + len(".app")]
+                subprocess.Popen(["open", "-a", app_bundle, str(target)])
+                return True, ""
         subprocess.Popen([exe, str(target)])
         return True, ""
     except OSError as e:
