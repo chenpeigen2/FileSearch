@@ -180,6 +180,24 @@ def pick_folder_dialog(initial_dir: str = "") -> tuple:
     finally:
         _picker_lock.release()
 
+
+def open_in_system(path: Path) -> tuple:
+    """在服务器上用系统默认方式打开一个目录/文件。返回 (ok, err)。"""
+    import subprocess
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+        return True, ""
+    except OSError as e:
+        return False, str(e)
+    except Exception as e:  # noqa: BLE001
+        return False, str(e)
+
+
 BASE_CSS = """
 * { box-sizing: border-box; }
 body {
@@ -452,6 +470,26 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
     else:
         hist_html = '<div class="history-empty">暂无访问记录</div>'
 
+    # 当前所在目录的操作按钮
+    cur_abs = str(current_root() / current_rel) if current_rel else str(current_root())
+    promote_html = ""
+    if current_rel:
+        promote_html = (
+            f'<form method="post" action="/roots/use" style="margin-top:6px;">'
+            f'  <input type="hidden" name="path" value="{html.escape(cur_abs)}">'
+            f'  <button type="submit" style="background:#5a5a5f;padding:6px 10px;font-size:13px;width:100%;">⬆ 提升为新根</button>'
+            f'</form>'
+        )
+    here_actions = f"""
+    <h2 class="mt">📍 当前位置</h2>
+    <div class="hint"><code>{html.escape(cur_abs)}</code></div>
+    <form method="post" action="/open">
+        <input type="hidden" name="rel" value="{html.escape(current_rel)}">
+        <button type="submit" style="background:#5a5a5f;padding:6px 10px;font-size:13px;width:100%;">🗔 在系统打开</button>
+    </form>
+    {promote_html}
+    """
+
     return f"""
 <aside class="sidebar">
     <h2>📌 当前根目录</h2>
@@ -465,6 +503,8 @@ def render_sidebar(current_rel: str, back_q: str = "") -> str:
         <h2>🔀 快速切换</h2>
     </div>
     {quick_html}
+
+    {here_actions}
 
     <h2 class="mt">🛠️ 新建文件夹</h2>
     <div class="hint">位置：<br><code>{html.escape(display)}</code></div>
@@ -883,6 +923,36 @@ class Handler(BaseHTTPRequestHandler):
             add_root(str(p))
             clear_history()
             self._redirect_with_cookie("/?msg=" + quote(f"已切换到 {p}") + "&kind=ok", str(p))
+            return
+
+        if path == "/roots/use":
+            new_root = (form.get("path", [""])[0] or "").strip()
+            try:
+                p = Path(new_root).expanduser().resolve()
+            except OSError:
+                self._redirect("/roots?msg=" + quote("路径无效") + "&kind=err")
+                return
+            if not p.is_dir():
+                self._redirect("/roots?msg=" + quote(f"目录不存在: {new_root}") + "&kind=err")
+                return
+            add_root(str(p))
+            clear_history()
+            self._redirect_with_cookie("/?msg=" + quote(f"已切换到 {p}") + "&kind=ok", str(p))
+            return
+
+        if path == "/open":
+            rel = (form.get("rel", [""])[0] or "").strip()
+            target = safe_resolve(rel)
+            if target is None or not target.is_dir():
+                back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
+                self._redirect(back_url + "?msg=" + quote("目录不存在") + "&kind=err")
+                return
+            ok, err = open_in_system(target)
+            back_url = (f"/browse/{quote(rel.strip('/'))}" if rel.strip("/") else "/")
+            if ok:
+                self._redirect(back_url + "?msg=" + quote("已在系统打开") + "&kind=ok")
+            else:
+                self._redirect(back_url + "?msg=" + quote(f"打开失败: {err}") + "&kind=err")
             return
 
         if path == "/roots/pick":
