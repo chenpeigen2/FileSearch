@@ -811,6 +811,41 @@ _ide_scan_state = {
 }
 _ide_scan_state_lock = threading.Lock()
 
+# 持久化文件（跟 .fs_roots.json 放一起）
+IDES_FILE = Path(__file__).resolve().parent / ".fs_ides.json"
+
+
+def load_ides_from_disk():
+    """从磁盘读上次扫描结果。只保留可执行文件仍然存在的项。返回 {id: {name, emoji, exe}}。"""
+    try:
+        with open(IDES_FILE, "r", encoding="utf-8") as fp:
+            data = json.load(fp)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    valid = {}
+    for ide_id, info in data.items():
+        if not isinstance(info, dict):
+            continue
+        exe = info.get("exe")
+        if isinstance(exe, str) and exe and os.path.isfile(exe):
+            valid[ide_id] = {
+                "name": info.get("name", ide_id),
+                "emoji": info.get("emoji", ""),
+                "exe": exe,
+            }
+    return valid
+
+
+def save_ides_to_disk(ides):
+    """把当前 ides 结果写入磁盘。失败静默忽略。"""
+    try:
+        with open(IDES_FILE, "w", encoding="utf-8") as fp:
+            json.dump(ides, fp, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
 
 def _run_detect(candidates):
     """给定候选表，扫描并返回 {id: {name, emoji, exe}}。纯计算，无副作用。"""
@@ -854,6 +889,9 @@ def _slow_scan_worker():
                 merged = dict(_ide_cache)
                 merged.update(found)
                 _ide_cache = merged
+            snapshot = dict(_ide_cache)
+        # 落盘
+        save_ides_to_disk(snapshot)
     finally:
         with _ide_scan_state_lock:
             _ide_scan_state["scanning"] = False
@@ -878,26 +916,36 @@ def _start_slow_scan_if_idle():
 
 
 def detect_ides():
-    """返回当前已知的 IDE 集合（快扫描 + 已完成的慢扫描结果）。
+    """返回当前已知的 IDE 集合（磁盘缓存 + 快扫描 + 已完成的慢扫描结果）。
 
-    首次调用时立即做一次快扫描，同时在后台线程启动慢扫描（不阻塞）。
+    首次调用时：
+      1. 从 .fs_ides.json 读上次的结果（校验可执行文件仍存在）作为初始
+      2. 跑一次快扫描并与磁盘缓存合并
+      3. 在后台线程启动慢扫描（不阻塞），完成后再落盘
     """
     global _ide_cache
     with _ide_cache_lock:
         if _ide_cache is not None:
-            snapshot = dict(_ide_cache)
-        else:
-            snapshot = None
-    if snapshot is None:
-        # 首次：先做一次快扫描
-        cands = _ide_candidates()
-        found = _run_detect(cands)
-        with _ide_cache_lock:
-            if _ide_cache is None:
-                _ide_cache = found
-            snapshot = dict(_ide_cache)
-        # 顺手启动一次后台慢扫描
-        _start_slow_scan_if_idle()
+            return dict(_ide_cache)
+
+    # 首次：磁盘 + 快扫描
+    from_disk = load_ides_from_disk()
+    cands = _ide_candidates()
+    quick = _run_detect(cands)
+    merged = dict(from_disk)
+    merged.update(quick)  # 快扫描的路径覆盖磁盘（PATH 可能已变）
+
+    with _ide_cache_lock:
+        if _ide_cache is None:
+            _ide_cache = merged
+        snapshot = dict(_ide_cache)
+
+    # 首次读到过磁盘缓存的话，落盘一份（合并了快扫描的结果）
+    if from_disk or quick:
+        save_ides_to_disk(snapshot)
+
+    # 启动后台慢扫描
+    _start_slow_scan_if_idle()
     return snapshot
 
 
@@ -907,10 +955,15 @@ def get_scan_state():
 
 
 def rescan_ides():
-    """强制重扫：清缓存，重跑快扫描，并触发后台慢扫描。返回快扫描结果。"""
+    """强制重扫：清内存和磁盘缓存，重跑快扫描 + 后台慢扫描。返回快扫描结果。"""
     global _ide_cache
     with _ide_cache_lock:
         _ide_cache = None
+    try:
+        if IDES_FILE.exists():
+            IDES_FILE.unlink()
+    except OSError:
+        pass
     return detect_ides()
 
 
@@ -2030,6 +2083,16 @@ def main():
 
     # 把启动根目录加入历史
     add_root(str(ROOT_DIR))
+
+    # 启动时先跑一遍快扫描并触发后台慢扫描；不阻塞主线程
+    had_cache = IDES_FILE.exists()
+    initial = detect_ides()
+    names = ", ".join(v["name"] for v in initial.values()) or "无"
+    if had_cache:
+        print(f"IDE 已加载磁盘缓存 + 快速扫描: 共 {len(initial)} 个 ({names})")
+    else:
+        print(f"IDE 快速扫描: 找到 {len(initial)} 个 ({names})")
+    print("IDE 深度扫描: 已在后台开始，完成后前端会自动刷新并写入 .fs_ides.json")
 
     try:
         server = ThreadingHTTPServer((HOST, PORT), Handler)
