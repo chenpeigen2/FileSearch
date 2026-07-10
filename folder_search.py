@@ -569,6 +569,7 @@ def _ide_extend_slow(ides):
     program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
 
     # JetBrains 系产品
+    # Android Studio 不属于 JetBrains Toolbox，由通用扫描处理
     jb_map_win = {
         "idea": ["idea64.exe", "idea.exe"],
         "pycharm": ["pycharm64.exe", "pycharm.exe"],
@@ -580,21 +581,18 @@ def _ide_extend_slow(ides):
         "rubymine": ["rubymine64.exe", "rubymine.exe"],
         "rustrover": ["rustrover64.exe", "rustrover.exe"],
         "datagrip": ["datagrip64.exe", "datagrip.exe"],
-        "android-studio": ["studio64.exe", "studio.exe"],
     }
     jb_map_mac = {
         "idea": ["idea"], "pycharm": ["pycharm"], "webstorm": ["webstorm"],
         "goland": ["goland"], "clion": ["clion"], "rider": ["rider"],
         "phpstorm": ["phpstorm"], "rubymine": ["rubymine"],
         "rustrover": ["rustrover"], "datagrip": ["datagrip"],
-        "android-studio": ["studio"],
     }
     jb_map_nix = {
         "idea": ["idea.sh"], "pycharm": ["pycharm.sh"], "webstorm": ["webstorm.sh"],
         "goland": ["goland.sh"], "clion": ["clion.sh"], "rider": ["rider.sh"],
         "phpstorm": ["phpstorm.sh"], "rubymine": ["rubymine.sh"],
         "rustrover": ["rustrover.sh"], "datagrip": ["datagrip.sh"],
-        "android-studio": ["studio.sh"],
     }
 
     if sys.platform.startswith("win"):
@@ -606,6 +604,7 @@ def _ide_extend_slow(ides):
         # 非系统盘上的 JetBrains 目录
         for extra in _win_extra_install_roots():
             jb_roots.append(extra / "JetBrains")
+        # Toolbox 结构较深（apps/<Product>/ch-0/<version>/bin/xxx.exe），需要 6 层
         _fill_from_glob(ides, jb_roots, jb_map_win, "win_paths", max_depth=6)
     elif sys.platform == "darwin":
         jb_roots = [
@@ -653,7 +652,8 @@ def _ide_extend_slow(ides):
         # 兜底：枚举所有非系统盘的常见安装目录
         gen_roots.extend(_win_extra_install_roots())
         gen_roots = [r for r in gen_roots if r]
-        _fill_from_glob(ides, gen_roots, generic_win, "win_paths", max_depth=6)
+        # 通用安装目录结构较浅：<root>/<vendor>/<app>/bin/<exe> 4 层足够
+        _fill_from_glob(ides, gen_roots, generic_win, "win_paths", max_depth=4)
     elif sys.platform == "darwin":
         mac_bundle_map = {
             "sublime": ["Sublime Text"],
@@ -693,7 +693,7 @@ def _ide_extend_slow(ides):
             [Path("/opt"), Path("/usr/local"),
              Path("/var/lib/flatpak/exports/bin"),
              home / ".local" / "share" / "flatpak" / "exports" / "bin"],
-            gen_linux, "linux_paths", max_depth=5,
+            gen_linux, "linux_paths", max_depth=4,
         )
     return ides
 
@@ -756,20 +756,61 @@ def _fill_from_apps(ides, roots, bundle_map):
 def _fill_from_glob(ides, roots, exe_map, target_key, max_depth=None):
     """在 roots 下按文件名匹配可执行文件，写入 ides[id][target_key]。
 
-    max_depth: 限制递归深度（相对 root）。None 表示无限（走 rglob，快但要求 root 就是安装目录）。
-               整数则用 BFS 手工限深，避免在 C:\\Program Files 这种大目录下爆炸。
+    优化：一次扫描一个 root，把 exe_map 里所有目标文件名合并成一个大 name set，
+    只走一遍目录树；命中后按名字反查回 ide_id。相比之前"每个 IDE 独立跑一次
+    整棵树"快数倍。
     """
+    # 反向索引：exe 文件名 -> [ide_id, ...]
+    name_to_ids = {}
     for ide_id, exe_names in exe_map.items():
         target = ides.get(ide_id, {}).get(target_key)
         if target is None:
             continue
-        for root in roots:
-            if not root.is_dir():
-                continue
-            hit_path = _find_file_by_names(root, set(exe_names), max_depth)
-            if hit_path:
-                target.append(hit_path)
+        for name in exe_names:
+            name_to_ids.setdefault(name, []).append(ide_id)
+    if not name_to_ids:
+        return ides
+
+    # 每个 root 只扫一次，收集所有能匹配到的可执行文件
+    for root in roots:
+        if not root.is_dir():
+            continue
+        hits = _find_files_by_names(root, name_to_ids, max_depth)
+        for fname, path in hits.items():
+            for ide_id in name_to_ids.get(fname, []):
+                ides[ide_id][target_key].append(path)
     return ides
+
+
+def _find_files_by_names(root: Path, name_map, max_depth):
+    """在 root 下 BFS 匹配 name_map 里的文件名，每个 name 只取第一个命中。
+
+    返回 {filename: absolute_path}。最坏情况扫到 max_depth 层为止。
+    """
+    remaining = set(name_map.keys())
+    found = {}
+    try:
+        stack = [(root, 0)]
+        while stack and remaining:
+            cur, depth = stack.pop()
+            try:
+                for entry in os.scandir(cur):
+                    try:
+                        if entry.is_file(follow_symlinks=False):
+                            if entry.name in remaining:
+                                found[entry.name] = entry.path
+                                remaining.discard(entry.name)
+                                if not remaining:
+                                    return found
+                        elif entry.is_dir(follow_symlinks=False) and depth < max_depth:
+                            stack.append((Path(entry.path), depth + 1))
+                    except OSError:
+                        continue
+            except (OSError, PermissionError):
+                continue
+    except OSError:
+        pass
+    return found
 
 
 def _find_file_by_names(root: Path, names: set, max_depth):
@@ -876,13 +917,13 @@ def _run_detect(candidates):
 
 def _slow_scan_worker():
     """后台线程：跑慢扫描并合并进 _ide_cache。"""
+    import traceback
     global _ide_cache
     try:
         cands = _ide_candidates()
         _ide_extend_slow(cands)
         found = _run_detect(cands)
         with _ide_cache_lock:
-            # 合并：慢扫描的结果覆盖/补充快扫描
             if _ide_cache is None:
                 _ide_cache = found
             else:
@@ -890,8 +931,9 @@ def _slow_scan_worker():
                 merged.update(found)
                 _ide_cache = merged
             snapshot = dict(_ide_cache)
-        # 落盘
         save_ides_to_disk(snapshot)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
     finally:
         with _ide_scan_state_lock:
             _ide_scan_state["scanning"] = False
@@ -1677,13 +1719,16 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- 每请求的根目录 ----------
     def _parse_cookie(self):
+        from http.cookies import SimpleCookie
         raw = self.headers.get("Cookie", "") or ""
         result = {}
-        for part in raw.split(";"):
-            part = part.strip()
-            if "=" in part:
-                k, v = part.split("=", 1)
-                result[k.strip()] = unquote(v.strip())
+        try:
+            jar = SimpleCookie()
+            jar.load(raw)
+            for k, morsel in jar.items():
+                result[k] = unquote(morsel.value)
+        except Exception:  # noqa: BLE001
+            pass
         return result
 
     def _apply_root_from_cookie(self):
@@ -1697,42 +1742,73 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             _ctx.root = None
             return
-        if p.is_dir():
+        if not p.is_dir():
+            _ctx.root = None
+            return
+        # 白名单校验：cookie 里的路径必须已经在根目录历史里，或等于全局默认 ROOT_DIR
+        norm = os.path.normcase(os.path.normpath(str(p)))
+        allowed = {os.path.normcase(os.path.normpath(str(ROOT_DIR)))}
+        for r in get_roots():
+            allowed.add(os.path.normcase(os.path.normpath(r)))
+        if norm in allowed:
             _ctx.root = p
         else:
-            _ctx.root = None
+            _ctx.root = None  # 不认这个 cookie（可能是攻击者塞进来的）
 
     def _set_root_cookie(self, path_str: str):
         # 设置 cookie；path_str 为空表示清除
         if path_str:
             v = quote(path_str)
-            self.send_header("Set-Cookie", f"fs_root={v}; Path=/; Max-Age=31536000; SameSite=Lax")
+            self.send_header(
+                "Set-Cookie",
+                f"fs_root={v}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly",
+            )
         else:
-            self.send_header("Set-Cookie", "fs_root=; Path=/; Max-Age=0; SameSite=Lax")
+            self.send_header(
+                "Set-Cookie",
+                "fs_root=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly",
+            )
+
+    def _same_origin(self) -> bool:
+        """校验 POST 请求的 Origin/Referer，防止跨站表单触发状态变更。
+
+        允许：Origin 或 Referer 以 http(s)://<Host> 开头；两者都缺则拒绝。
+        """
+        host = self.headers.get("Host") or ""
+        if not host:
+            return False
+        prefixes = (f"http://{host}", f"https://{host}",
+                    f"http://{host}/", f"https://{host}/")
+        origin = self.headers.get("Origin") or ""
+        if origin:
+            return origin == f"http://{host}" or origin == f"https://{host}" \
+                or origin.startswith(prefixes)
+        referer = self.headers.get("Referer") or ""
+        if referer:
+            return referer.startswith(prefixes)
+        return False
+
+    def _send_bytes(self, data: bytes, ctype: str, status: int = 200,
+                    extra_headers=None):
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if extra_headers:
+            for k, v in extra_headers:
+                self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(data)
 
     def _send_html(self, body: str, status: int = 200):
-        data = body.encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._send_bytes(body.encode("utf-8"), "text/html; charset=utf-8", status)
 
     def _send_text(self, msg: str, status: int = 404):
-        data = msg.encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._send_bytes(msg.encode("utf-8"), "text/plain; charset=utf-8", status)
 
     def _send_json(self, obj, status: int = 200):
         data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._send_bytes(data, "application/json; charset=utf-8", status)
 
     def _send_file(self, path: Path):
         try:
