@@ -131,41 +131,58 @@ def current_root() -> Path:
 _picker_lock = threading.Lock()
 
 
+def _run_folder_dialog(initial_dir: str = "") -> int:
+    """在当前进程里弹出 tkinter 文件夹对话框，把结果写到 stdout。返回退出码。
+
+    只应作为子进程入口调用（见 main() 里 --pick-dialog 分支）。
+    """
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write(f"tkinter unavailable: {e}")
+        return 2
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        root.attributes("-topmost", True)
+    except Exception:  # noqa: BLE001
+        pass
+    p = filedialog.askdirectory(
+        title="选择要浏览的文件夹",
+        initialdir=initial_dir or None,
+        mustexist=True,
+    )
+    root.destroy()
+    sys.stdout.write(p or "")
+    return 0
+
+
 def pick_folder_dialog(initial_dir: str = "") -> tuple:
     """在子进程里调起系统文件夹选择器（tkinter）。返回 (ok, path_or_err)。
 
-    放到子进程执行有两个原因：
-    - tkinter 的 mainloop / Tk 实例必须在主线程，服务器工作线程里直接用会报错；
-    - 对话框结束后进程退出，能干净地释放 Tk 资源。
+    - 源码运行时：`python -c` 启动子进程调用 _run_folder_dialog
+    - PyInstaller 打包后：sys.executable 是我们自己的 exe，不认 -c；
+      改用 `<exe> --pick-dialog <initial>`，由 main() 拦截处理
     """
     import subprocess
-    code = (
-        "import sys\n"
-        "try:\n"
-        "    import tkinter as tk\n"
-        "    from tkinter import filedialog\n"
-        "except Exception as e:\n"
-        "    sys.stderr.write('tkinter unavailable: ' + str(e))\n"
-        "    sys.exit(2)\n"
-        "init = sys.argv[1] if len(sys.argv) > 1 else ''\n"
-        "root = tk.Tk()\n"
-        "root.withdraw()\n"
-        "try:\n"
-        "    root.attributes('-topmost', True)\n"
-        "except Exception:\n"
-        "    pass\n"
-        "p = filedialog.askdirectory(title='选择要浏览的文件夹', initialdir=init or None, mustexist=True)\n"
-        "root.destroy()\n"
-        "sys.stdout.write(p or '')\n"
-    )
     if not _picker_lock.acquire(blocking=False):
         return False, "已有一个选择窗口打开，请先处理"
     try:
-        try:
-            result = subprocess.run(
-                [sys.executable, "-c", code, initial_dir or ""],
-                capture_output=True, timeout=600,
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, "--pick-dialog", initial_dir or ""]
+        else:
+            script_dir = str(Path(__file__).resolve().parent).replace("\\", "\\\\")
+            code = (
+                "import sys\n"
+                f"sys.path.insert(0, r'{script_dir}')\n"
+                "import folder_search\n"
+                "sys.exit(folder_search._run_folder_dialog("
+                "sys.argv[1] if len(sys.argv) > 1 else ''))\n"
             )
+            cmd = [sys.executable, "-c", code, initial_dir or ""]
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=600)
         except subprocess.TimeoutExpired:
             return False, "选择对话框超时"
         except OSError as e:
@@ -179,7 +196,6 @@ def pick_folder_dialog(initial_dir: str = "") -> tuple:
         return True, picked
     finally:
         _picker_lock.release()
-
 
 def open_in_system(path: Path) -> tuple:
     """在服务器上用系统默认方式打开一个目录/文件。返回 (ok, err)。"""
@@ -2208,6 +2224,11 @@ def resolve_root(arg):
 
 
 def main():
+    # 内部子命令：由 pick_folder_dialog 派生的子进程使用，直接弹对话框后退出
+    if len(sys.argv) >= 2 and sys.argv[1] == "--pick-dialog":
+        initial = sys.argv[2] if len(sys.argv) > 2 else ""
+        sys.exit(_run_folder_dialog(initial))
+
     global ROOT_DIR, HOST, PORT
     args = parse_args()
 
