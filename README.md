@@ -15,7 +15,24 @@
 
 只有一个脚本文件：`folder_search.py`，运行时会在同目录写两个隐藏状态文件（`.fs_roots.json`、`.fs_ides.json`）。
 
-## 环境要求
+## 下载预构建二进制
+
+如果不想装 Python，直接去 [Releases](https://github.com/chenpeigen2/FileSearch/releases) 下载对应平台的单文件可执行：
+
+| 平台 | 产物 |
+| --- | --- |
+| Windows x64 | `filesearch-windows-x86_64.exe` |
+| macOS Intel | `filesearch-macos-x86_64` |
+| macOS Apple Silicon | `filesearch-macos-arm64` |
+| Linux x64 | `filesearch-linux-x86_64` |
+
+Linux/macOS 首次运行需要 `chmod +x filesearch-*`。运行方式和 Python 版一致：
+
+```bash
+./filesearch-macos-arm64 ~/Downloads -p 8000
+```
+
+## 环境要求（源码运行）
 
 - Python 3.8+
 - 系统文件夹选择器需要 `tkinter`（Windows 官方 Python 自带；Debian/Ubuntu 上装 `python3-tk`；macOS 官方 Python 自带）
@@ -122,6 +139,38 @@ VS Code、VS Code Insiders、Cursor、Trae、Windsurf、Zed、Fleet、Sublime Te
 - 结果写到 `.fs_ides.json`（脚本同目录），下次启动秒读
 - 卸载 IDE 后：加载时会校验 `exe`，失效项自动剔除
 - 装了新 IDE：点侧边栏「🔄 重新扫描 IDE」，会删掉 `.fs_ides.json` 重新扫；或直接删掉该文件重启
+
+## 打包 & 发布
+
+### 本地打包（当前平台）
+
+```bash
+pip install pyinstaller
+python build.py                     # 产出 dist/filesearch-<os>-<arch>[.exe]
+python build.py --clean             # 打包前清理旧产物
+python build.py --name mytool.exe   # 自定义产物名
+python build.py --no-onefile        # 打成目录（启动更快、多文件）
+```
+
+依赖 [PyInstaller](https://pyinstaller.org/)，`build.py` 会在缺失时自动 `pip install`。
+
+### CI 自动发布（三平台并行）
+
+仓库自带 `.github/workflows/release.yml`：
+
+- 打 `v*` 开头的 tag（如 `v1.0.0`）时自动触发
+- 在 Windows / macOS Intel / macOS Apple Silicon / Linux 四个 runner 上并行构建
+- 每个产物做一次 `--help` 冒烟测试
+- 构建通过后自动创建 GitHub Release 并上传附件、生成 release notes
+
+发布流程：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+也可以在 Actions 页面手动触发 `workflow_dispatch` 只跑构建、不发布，用来验证 CI。
 
 ## 安全说明
 

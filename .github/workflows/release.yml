@@ -1,0 +1,84 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:  # 支持手动触发（不发布 Release，只跑构建看是否成功）
+
+permissions:
+  contents: write  # 上传 Release 附件需要写权限
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x86_64
+            artifact: filesearch-windows-x86_64.exe
+          - os: macos-13          # x86_64 (Intel)
+            name: macos-x86_64
+            artifact: filesearch-macos-x86_64
+          - os: macos-14          # arm64 (Apple Silicon)
+            name: macos-arm64
+            artifact: filesearch-macos-arm64
+          - os: ubuntu-latest
+            name: linux-x86_64
+            artifact: filesearch-linux-x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build binary
+        run: python build.py --clean --name ${{ matrix.artifact }}
+
+      - name: Smoke test (--help)
+        shell: bash
+        run: |
+          BIN="dist/${{ matrix.artifact }}"
+          echo "testing $BIN"
+          "$BIN" --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List artifacts
+        run: find dist -type f
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
