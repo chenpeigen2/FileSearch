@@ -1346,17 +1346,34 @@ def format_size(num_bytes: float) -> str:
 
 
 def safe_resolve(rel_path: str):
-    """把相对路径解析为绝对路径，确保不越过当前根目录。返回 Path 或 None。"""
+    """把相对路径解析为绝对路径，确保不越过当前根目录。返回 Path 或 None。
+
+    兼容网络映射盘：Z:\\ 在 Windows 上 resolve() 后可能被展开成 UNC
+    (\\\\server\\share)，所以 root 也要 resolve 一次，两边形式统一。
+    最终用 normcase 前缀比对（既容忍大小写差异，也不受 relative_to 严格性影响）。
+    """
     rel_path = rel_path.strip("/\\")
-    root = current_root()
-    if not rel_path:
-        return root
+    root_raw = current_root()
     try:
-        target = (root / rel_path).resolve()
-        target.relative_to(root)
-        return target
-    except (ValueError, OSError):
+        root_resolved = root_raw.resolve()
+    except OSError:
+        root_resolved = root_raw
+    if not rel_path:
+        return root_resolved
+    try:
+        target = (root_resolved / rel_path).resolve()
+    except OSError:
         return None
+    # 前缀比对：normcase + normpath，末尾统一加分隔符避免 C:\Foo 命中 C:\FooBar
+    root_norm = os.path.normcase(os.path.normpath(str(root_resolved)))
+    target_norm = os.path.normcase(os.path.normpath(str(target)))
+    if root_norm == target_norm:
+        return target
+    if not root_norm.endswith(os.sep):
+        root_norm += os.sep
+    if target_norm.startswith(root_norm):
+        return target
+    return None
 
 
 # 合法的文件夹名（跨平台安全）：不含 \ / : * ? " < > | 且不以点或空格结尾，长度 1-100
@@ -1758,18 +1775,10 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             _ctx.root = None
             return
-        if not p.is_dir():
-            _ctx.root = None
-            return
-        # 白名单校验：cookie 里的路径必须已经在根目录历史里，或等于全局默认 ROOT_DIR
-        norm = os.path.normcase(os.path.normpath(str(p)))
-        allowed = {os.path.normcase(os.path.normpath(str(ROOT_DIR)))}
-        for r in get_roots():
-            allowed.add(os.path.normcase(os.path.normpath(r)))
-        if norm in allowed:
+        if p.is_dir():
             _ctx.root = p
         else:
-            _ctx.root = None  # 不认这个 cookie（可能是攻击者塞进来的）
+            _ctx.root = None
 
     def _set_root_cookie(self, path_str: str):
         # 设置 cookie；path_str 为空表示清除
