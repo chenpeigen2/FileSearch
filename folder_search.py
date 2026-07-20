@@ -1156,7 +1156,12 @@ SCROLL_JS = """
 <script>
 (function () {
     var PATH_KEY = 'fs_scroll_' + location.pathname + location.search;
-    var CLICK_KEY = 'fs_clicked_' + location.pathname + location.search;
+    // CLICK_KEY 只按目录路径存，不带 search：多级回退经过不同 sq 的父目录时，
+    // 上次点了哪个子项仍然能对上，避免高亮丢失。
+    var CLICK_KEY = 'fs_clicked_' + location.pathname;
+    // 点击代际：恢复高亮后延迟删 key 时，用它判断期间有没有新点击，
+    // 防止定时器把用户刚点击写入的同名 key 误删（回退不高亮的根因）。
+    var clickGen = 0;
 
     try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
 
@@ -1165,11 +1170,31 @@ SCROLL_JS = """
     document.addEventListener('click', function (e) {
         var li = e.target && (e.target.closest ? e.target.closest('li[data-fs-key]') : null);
         if (li) {
+            clickGen++;
             try { sessionStorage.setItem(CLICK_KEY, li.getAttribute('data-fs-key')); } catch (err) {}
         }
         // 提前保存滚动位置
         savePos();
     }, true);
+
+    // "上一级"：上一页就是父目录时（同源且路径一致）用 history.back()，
+    // 精确回到来源状态（保留 sq 过滤、滚动位置，配合 pageshow 恢复高亮）；
+    // 直接粘贴 URL / 新标签打开 / 跨源进入等没有可用来源时，走 href 的干净父路径。
+    document.addEventListener('click', function (e) {
+        var a = e.target && (e.target.closest ? e.target.closest('a[data-fs-back="1"]') : null);
+        if (!a) return;
+        if (e.defaultPrevented || e.button !== 0 ||
+            e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        try {
+            var ref = document.referrer ? new URL(document.referrer) : null;
+            var target = new URL(a.getAttribute('href'), location.href);
+            if (ref && ref.origin === target.origin &&
+                ref.pathname === target.pathname && history.length > 1) {
+                e.preventDefault();
+                history.back();
+            }
+        } catch (err) { /* 解析失败则走默认 href */ }
+    }, false);
 
     // ---- 记录滚动位置（备用） ----
     function savePos() {
@@ -1184,7 +1209,8 @@ SCROLL_JS = """
         if (t) return;
         t = setTimeout(function () { t = null; savePos(); }, 100);
     }, { passive: true });
-    window.addEventListener('beforeunload', savePos);
+    // 不挂 beforeunload：Chrome/Edge 下它会让页面失去 BFCache 资格，
+    // 回退被迫整页重载，高亮闪烁在首屏渲染前放完，表现为"回退不高亮"。
     window.addEventListener('pagehide', savePos);
 
     // ---- 恢复：优先定位到上次点击项，其次用滚动像素 ----
@@ -1201,9 +1227,22 @@ SCROLL_JS = """
             var li = document.querySelector(sel);
             if (li) {
                 li.scrollIntoView({ block: 'center' });
+                // 重放闪烁动画（二次恢复时 class 已存在，不重置动画不会重播）
+                li.classList.remove('fs-active');
+                void li.offsetWidth;
                 li.classList.add('fs-active');
-                // 一次性使用后清掉，防止刷新时反复触发
-                try { sessionStorage.removeItem(CLICK_KEY); } catch (e) {}
+                // 延迟清掉而不是立即清：BFCache 失效走整页重载时，DOMContentLoaded 和
+                // load 会各恢复一次，立即清掉会让用户真正能看到的那次恢复拿不到 key。
+                // 仅当期间没有新的点击（代际未变）且值未被覆盖时才删。
+                var gen = clickGen;
+                setTimeout(function () {
+                    try {
+                        if (gen === clickGen &&
+                            sessionStorage.getItem(CLICK_KEY) === key) {
+                            sessionStorage.removeItem(CLICK_KEY);
+                        }
+                    } catch (e) {}
+                }, 2000);
                 return;
             }
         }
@@ -1219,6 +1258,10 @@ SCROLL_JS = """
     }
     // 兜底：load 之后再来一次
     window.addEventListener('load', function () { setTimeout(restore, 30); });
+    // BFCache：从后退恢复时不触发 DOMContentLoaded/load，需要监听 pageshow
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) { setTimeout(restore, 30); }
+    });
 
     // ---- 修正 autofocus 输入框：光标移到末尾 ----
     function caretToEnd() {
@@ -1659,7 +1702,12 @@ def render_browse(target: Path, back_q: str = "", sq: str = "", msg: str = "", m
     rel = target.relative_to(root)
     rel_parts = rel.parts if str(rel) != "." else ()
 
+    # URL 里每层只带自己该带的：q 是"外层根目录搜索"上下文，sq 是当前目录过滤。
+    # 层与层之间的"上一级"完全交给浏览器 history（.back 链接由 JS 拦截为 history.back()），
+    # 直接访问 / 跨源打开时用下面这个静态 fallback，只带 q（外层搜索），不带 sq。
     q_suffix = f"?q={quote(back_q)}" if back_q else ""
+    child_suffix = q_suffix
+    parent_suffix = q_suffix
 
     # 面包屑
     crumbs = []
@@ -1671,13 +1719,14 @@ def render_browse(target: Path, back_q: str = "", sq: str = "", msg: str = "", m
         )
     crumbs_html = " ".join(crumbs)
 
-    # 上级
+    # 上级：优先由 JS 拦截为 history.back()（保留上层完整状态含 sq/滚动），
+    # 只有 referrer 缺失/跨源时才回落到 href。
     if len(rel_parts) > 1:
-        parent_url = "/browse/" + quote("/".join(rel_parts[:-1])) + q_suffix
-        parent_link = f'<a class="back" href="{parent_url}">⬆ 上一级</a>'
+        parent_url = "/browse/" + quote("/".join(rel_parts[:-1])) + parent_suffix
+        parent_link = f'<a class="back" href="{parent_url}" data-fs-back="1">⬆ 上一级</a>'
     elif len(rel_parts) == 1:
-        # 返回首页时保留搜索
-        parent_link = f'<a class="back" href="/{q_suffix}">⬆ 上一级</a>'
+        # 返回首页时保留外层搜索
+        parent_link = f'<a class="back" href="/{q_suffix}" data-fs-back="1">⬆ 上一级</a>'
     else:
         parent_link = ""
 
@@ -1689,7 +1738,7 @@ def render_browse(target: Path, back_q: str = "", sq: str = "", msg: str = "", m
         if is_dir:
             rows.append(
                 f'<li data-fs-key="{html.escape(rel_child)}"><span class="icon">📁</span>'
-                f'<a href="/browse/{url}{q_suffix}">{html.escape(name)}</a></li>'
+                f'<a href="/browse/{url}{child_suffix}">{html.escape(name)}</a></li>'
             )
         else:
             rows.append(
@@ -1708,10 +1757,10 @@ def render_browse(target: Path, back_q: str = "", sq: str = "", msg: str = "", m
 
     # 搜索框：GET 到当前 URL，用 sq 过滤当前目录；同时保留 q（返回时的外层搜索）
     action_path = "/browse/" + quote(rel_str) if rel_str else "/"
-    q_hidden = f'<input type="hidden" name="q" value="{html.escape(back_q)}">' if (rel_str and back_q) else ""
-    if not rel_str and back_q:
-        # 首页搜索时用 q（这里其实用不到这个分支）
-        q_hidden = ""
+    hidden_fields = []
+    if rel_str and back_q:
+        hidden_fields.append(f'<input type="hidden" name="q" value="{html.escape(back_q)}">')
+    q_hidden = "".join(hidden_fields)
 
     if sq:
         cnt_info = f'关键字 "<b>{html.escape(sq)}</b>" 匹配到 {len(entries)} 项'
@@ -1744,6 +1793,11 @@ def render_browse(target: Path, back_q: str = "", sq: str = "", msg: str = "", m
 </div>
 {SCROLL_JS}
 </body></html>"""
+
+
+def _location_header(url: str) -> str:
+    """Location 头只能是 latin-1；把非 ASCII 字符百分号编码，避免重定向时崩溃。"""
+    return quote(url, safe="/:?&=%#+~,@!$'()*[];-")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -2126,13 +2180,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _redirect(self, url: str):
         self.send_response(303)
-        self.send_header("Location", url)
+        self.send_header("Location", _location_header(url))
         self.send_header("Content-Length", "0")
         self.end_headers()
 
     def _redirect_with_cookie(self, url: str, root_path: str):
         self.send_response(303)
-        self.send_header("Location", url)
+        self.send_header("Location", _location_header(url))
         self._set_root_cookie(root_path)
         self.send_header("Content-Length", "0")
         self.end_headers()
