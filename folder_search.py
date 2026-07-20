@@ -1251,13 +1251,26 @@ SCROLL_JS = """
         }
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', restore);
-    } else {
-        restore();
+    // 只有"回退/前进"导航才恢复高亮和滚动位置；普通点击进入（navigate/reload）
+    // 页面从头开始，避免回退后再次进入时还闪上次的高亮、跳回历史滚动位置。
+    function isBackForward() {
+        try {
+            var nav = performance.getEntriesByType('navigation');
+            if (nav && nav.length) return nav[0].type === 'back_forward';
+            if (performance.navigation) return performance.navigation.type === 2; // TYPE_BACK_FORWARD
+        } catch (e) {}
+        return false;
     }
-    // 兜底：load 之后再来一次
-    window.addEventListener('load', function () { setTimeout(restore, 30); });
+
+    if (isBackForward()) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', restore);
+        } else {
+            restore();
+        }
+        // 兜底：load 之后再来一次
+        window.addEventListener('load', function () { setTimeout(restore, 30); });
+    }
     // BFCache：从后退恢复时不触发 DOMContentLoaded/load，需要监听 pageshow
     window.addEventListener('pageshow', function (e) {
         if (e.persisted) { setTimeout(restore, 30); }
